@@ -2,9 +2,10 @@ package jsoniter
 
 import (
 	"encoding/json"
-	"github.com/modern-go/reflect2"
 	"strconv"
 	"unsafe"
+
+	"github.com/modern-go/reflect2"
 )
 
 type Number string
@@ -66,7 +67,7 @@ func (codec *jsonNumberCodec) Decode(ptr unsafe.Pointer, iter *Iterator) {
 		iter.skipFourBytes('n', 'u', 'l', 'l')
 		*((*json.Number)(ptr)) = ""
 	default:
-		*((*json.Number)(ptr)) = json.Number([]byte(iter.readNumberAsString()))
+		*((*json.Number)(ptr)) = json.Number(iter.readNumberAsString())
 	}
 }
 
@@ -94,7 +95,7 @@ func (codec *jsoniterNumberCodec) Decode(ptr unsafe.Pointer, iter *Iterator) {
 		iter.skipFourBytes('n', 'u', 'l', 'l')
 		*((*Number)(ptr)) = ""
 	default:
-		*((*Number)(ptr)) = Number([]byte(iter.readNumberAsString()))
+		*((*Number)(ptr)) = Number(iter.readNumberAsString())
 	}
 }
 
