@@ -59,7 +59,7 @@ func (iter *Iterator) readFieldHash() int64 {
 			b := iter.buf[i]
 			if b == '\\' {
 				iter.head = i
-				for _, b := range iter.readStringSlowPath() {
+				for _, b := range iter.readStringInner() {
 					if 'A' <= b && b <= 'Z' && !iter.cfg.caseSensitive {
 						b += 'a' - 'A'
 					}

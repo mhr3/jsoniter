@@ -2,53 +2,67 @@ package jsoniter
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf16"
 )
 
 // ReadString read string from iterator
-func (iter *Iterator) ReadString() (ret string) {
+func (iter *Iterator) ReadString() string {
 	c := iter.nextToken()
 	if c == '"' {
-		for i := iter.head; i < iter.tail; i++ {
-			c := iter.buf[i]
-			if c == '"' {
-				ret = string(iter.buf[iter.head:i])
-				iter.head = i + 1
-				return ret
-			} else if c == '\\' {
-				break
-			} else if c < ' ' {
-				iter.ReportError("ReadString",
-					fmt.Sprintf(`invalid control character found: %d`, c))
-				return
-			}
-		}
-		return iter.readStringSlowPath()
+		return iter.readStringInner()
 	} else if c == 'n' {
 		iter.skipThreeBytes('u', 'l', 'l')
 		return ""
 	}
 	iter.ReportError("ReadString", `expects " or n, but found `+string([]byte{c}))
-	return
+	return ""
 }
 
-func (iter *Iterator) readStringSlowPath() (ret string) {
-	var str []byte
-	var c byte
+func (iter *Iterator) readStringInner() string {
+	sb := strings.Builder{}
+
 	for iter.Error == nil {
-		c = iter.readByte()
-		if c == '"' {
-			return string(str)
+		decodeEscapedChar := false
+
+		for i := iter.head; i < iter.tail; i++ {
+			c := iter.buf[i]
+			if c == '"' {
+				sb.Write(iter.buf[iter.head:i])
+				iter.head = i + 1
+				return sb.String()
+			} else if c == '\\' {
+				sb.Write(iter.buf[iter.head:i])
+				iter.head = i + 1
+				decodeEscapedChar = true
+				break
+			} else if c < ' ' {
+				iter.ReportError("ReadString",
+					fmt.Sprintf(`invalid control character found: %d`, c))
+				return ""
+			}
 		}
-		if c == '\\' {
-			c = iter.readByte()
-			str = iter.readEscapedChar(c, str)
-		} else {
-			str = append(str, c)
+
+		if decodeEscapedChar {
+			c := iter.readByte()
+			buf := [8]byte{}
+			sb.Write(iter.readEscapedChar(c, buf[:0]))
+			continue
 		}
+
+		// copy buffer and load more
+		sb.Write(iter.buf[iter.head:iter.tail])
+		iter.head = iter.tail
+
+		// load next chunk
+		if iter.readByte() == 0 {
+			break
+		}
+		iter.unreadByte()
 	}
-	iter.ReportError("readStringSlowPath", "unexpected end of input")
-	return
+
+	iter.ReportError("ReadString", "unexpected end of input")
+	return ""
 }
 
 func (iter *Iterator) readEscapedChar(c byte, str []byte) []byte {
@@ -84,7 +98,7 @@ func (iter *Iterator) readEscapedChar(c byte, str []byte) []byte {
 			} else {
 				str = appendRune(str, combined)
 			}
-		} else {
+		} else if iter.Error == nil {
 			str = appendRune(str, r)
 		}
 	case '"':
