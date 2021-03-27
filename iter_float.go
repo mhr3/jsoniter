@@ -1,12 +1,11 @@
 package jsoniter
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"math/big"
 	"strconv"
-	"strings"
-	"unsafe"
 )
 
 var floatDigits []int8
@@ -156,16 +155,14 @@ non_decimal_loop:
 	return iter.readFloat32SlowPath()
 }
 
-func (iter *Iterator) readNumberAsString() (ret string) {
-	strBuf := [16]byte{}
-	str := strBuf[0:0]
+func (iter *Iterator) readNumberAsBytes(buf []byte) []byte {
 load_loop:
 	for {
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
 			switch c {
 			case '+', '-', '.', 'e', 'E', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				str = append(str, c)
+				buf = append(buf, c)
 				continue
 			default:
 				iter.head = i
@@ -177,25 +174,34 @@ load_loop:
 		}
 	}
 	if iter.Error != nil && iter.Error != io.EOF {
-		return
+		return nil
 	}
-	if len(str) == 0 {
-		iter.ReportError("readNumberAsString", "invalid number")
+	if len(buf) == 0 {
+		iter.ReportError("readNumberAsBytes", "invalid number")
 	}
-	return *(*string)(unsafe.Pointer(&str))
+	return buf
+}
+
+func (iter *Iterator) readNumberAsString() (ret string) {
+	// this will save one alloc in most cases
+	buf := [24]byte{}
+	res := iter.readNumberAsBytes(buf[:0])
+
+	return string(res)
 }
 
 func (iter *Iterator) readFloat32SlowPath() (ret float32) {
-	str := iter.readNumberAsString()
+	buf := [24]byte{}
+	strBuf := iter.readNumberAsBytes(buf[:0])
 	if iter.Error != nil && iter.Error != io.EOF {
 		return
 	}
-	errMsg := validateFloat(str)
-	if errMsg != "" {
+
+	if errMsg := validatePositiveFloat(strBuf); errMsg != "" {
 		iter.ReportError("readFloat32SlowPath", errMsg)
 		return
 	}
-	val, err := strconv.ParseFloat(str, 32)
+	val, err := strconv.ParseFloat(string(strBuf), 32)
 	if err != nil {
 		iter.Error = err
 		return
@@ -297,16 +303,17 @@ non_decimal_loop:
 }
 
 func (iter *Iterator) readFloat64SlowPath() (ret float64) {
-	str := iter.readNumberAsString()
+	buf := [24]byte{}
+	strBuf := iter.readNumberAsBytes(buf[:0])
 	if iter.Error != nil && iter.Error != io.EOF {
 		return
 	}
-	errMsg := validateFloat(str)
+	errMsg := validatePositiveFloat(strBuf)
 	if errMsg != "" {
 		iter.ReportError("readFloat64SlowPath", errMsg)
 		return
 	}
-	val, err := strconv.ParseFloat(str, 64)
+	val, err := strconv.ParseFloat(string(strBuf), 64)
 	if err != nil {
 		iter.Error = err
 		return
@@ -314,20 +321,20 @@ func (iter *Iterator) readFloat64SlowPath() (ret float64) {
 	return val
 }
 
-func validateFloat(str string) string {
+func validatePositiveFloat(input []byte) string {
 	// strconv.ParseFloat is not validating `1.` or `1.e1`
-	if len(str) == 0 {
+	if len(input) == 0 {
 		return "empty number"
 	}
-	if str[0] == '-' {
+	if input[0] == '-' {
 		return "-- is not valid"
 	}
-	dotPos := strings.IndexByte(str, '.')
+	dotPos := bytes.IndexByte(input, '.')
 	if dotPos != -1 {
-		if dotPos == len(str)-1 {
+		if dotPos == len(input)-1 {
 			return "dot can not be last character"
 		}
-		switch str[dotPos+1] {
+		switch input[dotPos+1] {
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		default:
 			return "missing digit after dot"
@@ -339,4 +346,20 @@ func validateFloat(str string) string {
 // ReadNumber read json.Number
 func (iter *Iterator) ReadNumber() (ret json.Number) {
 	return json.Number(iter.readNumberAsString())
+}
+
+// ReadNumberAsSlice reads a json number into the provided byte slice (can be nil)
+func (iter *Iterator) ReadNumberAsSlice(buf []byte) []byte {
+	buf = iter.readNumberAsBytes(buf)
+
+	checked := buf
+	if len(buf) > 0 && buf[0] == '-' {
+		checked = checked[1:]
+	}
+	if errMsg := validatePositiveFloat(checked); errMsg != "" {
+		iter.ReportError("ReadNumberAsSlice", errMsg)
+		return nil
+	}
+
+	return buf
 }
