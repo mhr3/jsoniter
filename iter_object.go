@@ -17,8 +17,7 @@ func (iter *Iterator) ReadObject() (ret string) {
 	case '{':
 		c = iter.nextToken()
 		if c == '"' {
-			iter.unreadByte()
-			field := iter.ReadString()
+			field := iter.readStringInner()
 			c = iter.nextToken()
 			if c != ':' {
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
@@ -117,8 +116,7 @@ func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
 		}
 		c = iter.nextToken()
 		if c == '"' {
-			iter.unreadByte()
-			field = iter.ReadString()
+			field = iter.readStringInner()
 			c = iter.nextToken()
 			if c != ':' {
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
@@ -171,8 +169,7 @@ func (iter *Iterator) ReadMapCB(callback func(*Iterator, string) bool) bool {
 		}
 		c = iter.nextToken()
 		if c == '"' {
-			iter.unreadByte()
-			field := iter.ReadString()
+			field := iter.readStringInner()
 			if iter.nextToken() != ':' {
 				iter.ReportError("ReadMapCB", "expect : after object field, but found "+string([]byte{c}))
 				iter.decrementDepth()

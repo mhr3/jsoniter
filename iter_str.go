@@ -1,7 +1,7 @@
 package jsoniter
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf16"
 )
@@ -28,6 +28,12 @@ func (iter *Iterator) readStringInner() string {
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
 			if c == '"' {
+				if sb.Len() == 0 {
+					// super fast path
+					res := string(iter.buf[iter.head:i])
+					iter.head = i + 1
+					return res
+				}
 				sb.Write(iter.buf[iter.head:i])
 				iter.head = i + 1
 				return sb.String()
@@ -38,15 +44,14 @@ func (iter *Iterator) readStringInner() string {
 				break
 			} else if c < ' ' {
 				iter.ReportError("ReadString",
-					fmt.Sprintf(`invalid control character found: %d`, c))
+					"invalid control character found: "+strconv.Itoa(int(c)))
 				return ""
 			}
 		}
 
 		if decodeEscapedChar {
-			c := iter.readByte()
 			buf := [8]byte{}
-			sb.Write(iter.readEscapedChar(c, buf[:0]))
+			sb.Write(iter.readEscapedChar(buf[:0]))
 			continue
 		}
 
@@ -65,7 +70,10 @@ func (iter *Iterator) readStringInner() string {
 	return ""
 }
 
-func (iter *Iterator) readEscapedChar(c byte, str []byte) []byte {
+func (iter *Iterator) readEscapedChar(str []byte) []byte {
+	c := iter.readByte()
+
+start:
 	switch c {
 	case 'u':
 		r := iter.readU4()
@@ -85,7 +93,7 @@ func (iter *Iterator) readEscapedChar(c byte, str []byte) []byte {
 			}
 			if c != 'u' {
 				str = appendRune(str, r)
-				return iter.readEscapedChar(c, str)
+				goto start
 			}
 			r2 := iter.readU4()
 			if iter.Error != nil {
