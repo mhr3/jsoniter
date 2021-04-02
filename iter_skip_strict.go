@@ -3,7 +3,6 @@
 package jsoniter
 
 import (
-	"fmt"
 	"io"
 )
 
@@ -59,27 +58,21 @@ func (iter *Iterator) trySkipNumber() bool {
 }
 
 func (iter *Iterator) skipString() {
-	if !iter.trySkipString() {
-		iter.unreadByte()
-		iter.ReadString()
-	}
-}
-
-func (iter *Iterator) trySkipString() bool {
 	for i := iter.head; i < iter.tail; i++ {
 		c := iter.buf[i]
 		if c == '"' {
 			iter.head = i + 1
-			return true // valid
+			return // skipped the entire string
 		} else if c == '\\' {
-			return false
+			iter.head = i
+			break
 		} else if c < ' ' {
-			iter.ReportError("trySkipString",
-				fmt.Sprintf(`invalid control character found: %d`, c))
-			return true // already failed
+			iter.head = i
+			break
 		}
 	}
-	return false
+
+	iter.readStringInner()
 }
 
 func (iter *Iterator) skipObject() {

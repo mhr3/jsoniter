@@ -98,6 +98,7 @@ func TestReadLongString(t *testing.T) {
 
 func BenchmarkReadLongString(b *testing.B) {
 	const strSize = 10240
+	const bufSize = 4096
 
 	b.Run("simple", func(b *testing.B) {
 		chars := make([]byte, strSize*3/4)
@@ -107,7 +108,7 @@ func BenchmarkReadLongString(b *testing.B) {
 		}
 		testString := strconv.Quote(base64.StdEncoding.EncodeToString(chars))
 		rdr := strings.NewReader(testString)
-		iter := jsoniter.Parse(jsoniter.ConfigDefault, nil, 4096)
+		iter := jsoniter.Parse(jsoniter.ConfigDefault, rdr, bufSize)
 
 		for i := 0; i < b.N; i++ {
 			rdr.Reset(testString)
@@ -127,7 +128,7 @@ func BenchmarkReadLongString(b *testing.B) {
 		}
 		testString := strconv.Quote(string(chars))
 		rdr := strings.NewReader(testString)
-		iter := jsoniter.Parse(jsoniter.ConfigDefault, rdr, 4096)
+		iter := jsoniter.Parse(jsoniter.ConfigDefault, rdr, bufSize)
 
 		for i := 0; i < b.N; i++ {
 			rdr.Reset(testString)
