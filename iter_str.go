@@ -22,9 +22,8 @@ func (iter *Iterator) ReadString() string {
 func (iter *Iterator) readStringInner() string {
 	sb := strings.Builder{}
 
+outerLoop:
 	for iter.Error == nil {
-		decodeEscapedChar := false
-
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
 			if c == '"' {
@@ -40,19 +39,13 @@ func (iter *Iterator) readStringInner() string {
 			} else if c == '\\' {
 				sb.Write(iter.buf[iter.head:i])
 				iter.head = i + 1
-				decodeEscapedChar = true
-				break
+				iter.readEscapedChar(&sb)
+				continue outerLoop
 			} else if c < ' ' {
 				iter.ReportError("ReadString",
 					"invalid control character found: "+strconv.Itoa(int(c)))
 				return ""
 			}
-		}
-
-		if decodeEscapedChar {
-			buf := [8]byte{}
-			sb.Write(iter.readEscapedChar(buf[:0]))
-			continue
 		}
 
 		// copy buffer and load more
@@ -70,7 +63,7 @@ func (iter *Iterator) readStringInner() string {
 	return ""
 }
 
-func (iter *Iterator) readEscapedChar(str []byte) []byte {
+func (iter *Iterator) readEscapedChar(sb *strings.Builder) {
 	c := iter.readByte()
 
 start:
@@ -80,57 +73,55 @@ start:
 		if utf16.IsSurrogate(r) {
 			c = iter.readByte()
 			if iter.Error != nil {
-				return nil
+				return
 			}
 			if c != '\\' {
 				iter.unreadByte()
-				str = appendRune(str, r)
-				return str
+				sb.WriteRune(r)
+				return
 			}
 			c = iter.readByte()
 			if iter.Error != nil {
-				return nil
+				return
 			}
 			if c != 'u' {
-				str = appendRune(str, r)
+				sb.WriteRune(r)
 				goto start
 			}
 			r2 := iter.readU4()
 			if iter.Error != nil {
-				return nil
+				return
 			}
 			combined := utf16.DecodeRune(r, r2)
 			if combined == '\uFFFD' {
-				str = appendRune(str, r)
-				str = appendRune(str, r2)
+				sb.WriteRune(r)
+				sb.WriteRune(r2)
 			} else {
-				str = appendRune(str, combined)
+				sb.WriteRune(combined)
 			}
 		} else if iter.Error == nil {
-			str = appendRune(str, r)
+			sb.WriteRune(r)
 		}
 	case '"':
-		str = append(str, '"')
+		sb.WriteByte('"')
 	case '\\':
-		str = append(str, '\\')
+		sb.WriteByte('\\')
 	case '/':
-		str = append(str, '/')
+		sb.WriteByte('/')
 	case 'b':
-		str = append(str, '\b')
+		sb.WriteByte('\b')
 	case 'f':
-		str = append(str, '\f')
+		sb.WriteByte('\f')
 	case 'n':
-		str = append(str, '\n')
+		sb.WriteByte('\n')
 	case 'r':
-		str = append(str, '\r')
+		sb.WriteByte('\r')
 	case 't':
-		str = append(str, '\t')
+		sb.WriteByte('\t')
 	default:
 		iter.ReportError("readEscapedChar",
 			`invalid escape char after \`)
-		return nil
 	}
-	return str
 }
 
 // ReadStringAsSlice read string from iterator without copying into string form.
@@ -183,55 +174,4 @@ func (iter *Iterator) readU4() (ret rune) {
 		}
 	}
 	return ret
-}
-
-const (
-	t1 = 0x00 // 0000 0000
-	tx = 0x80 // 1000 0000
-	t2 = 0xC0 // 1100 0000
-	t3 = 0xE0 // 1110 0000
-	t4 = 0xF0 // 1111 0000
-	t5 = 0xF8 // 1111 1000
-
-	maskx = 0x3F // 0011 1111
-	mask2 = 0x1F // 0001 1111
-	mask3 = 0x0F // 0000 1111
-	mask4 = 0x07 // 0000 0111
-
-	rune1Max = 1<<7 - 1
-	rune2Max = 1<<11 - 1
-	rune3Max = 1<<16 - 1
-
-	surrogateMin = 0xD800
-	surrogateMax = 0xDFFF
-
-	maxRune   = '\U0010FFFF' // Maximum valid Unicode code point.
-	runeError = '\uFFFD'     // the "error" Rune or "Unicode replacement character"
-)
-
-func appendRune(p []byte, r rune) []byte {
-	// Negative values are erroneous. Making it unsigned addresses the problem.
-	switch i := uint32(r); {
-	case i <= rune1Max:
-		p = append(p, byte(r))
-		return p
-	case i <= rune2Max:
-		p = append(p, t2|byte(r>>6))
-		p = append(p, tx|byte(r)&maskx)
-		return p
-	case i > maxRune, surrogateMin <= i && i <= surrogateMax:
-		r = runeError
-		fallthrough
-	case i <= rune3Max:
-		p = append(p, t3|byte(r>>12))
-		p = append(p, tx|byte(r>>6)&maskx)
-		p = append(p, tx|byte(r)&maskx)
-		return p
-	default:
-		p = append(p, t4|byte(r>>18))
-		p = append(p, tx|byte(r>>12)&maskx)
-		p = append(p, tx|byte(r>>6)&maskx)
-		p = append(p, tx|byte(r)&maskx)
-		return p
-	}
 }
