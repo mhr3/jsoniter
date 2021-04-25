@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +37,27 @@ func Test_bad_case(t *testing.T) {
 	}
 	if count != 32 {
 		t.Fatal(count)
+	}
+}
+
+func Test_empty_keys(t *testing.T) {
+	iter := jsoniter.Parse(jsoniter.ConfigDefault, bytes.NewBufferString(`{"Info":{"InfoHash":""}, "":true, "Size":8, "foo\t": "\r\"\n"}`), 4096)
+
+	for peeker := iter.PeekObject(); !peeker.IsEmpty(); peeker = iter.PeekObject() {
+		key := peeker.String()
+		switch key {
+		case "Info":
+		case "":
+		case "foo\t":
+		case "Size":
+		default:
+			t.Fatal("Invalid key:", key)
+		}
+		iter.Skip()
+	}
+
+	if iter.Error != nil {
+		t.Fatal(iter.Error)
 	}
 }
 

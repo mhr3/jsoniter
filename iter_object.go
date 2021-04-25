@@ -9,38 +9,49 @@ import (
 // If object ended, returns empty string.
 // Otherwise, returns the field name.
 func (iter *Iterator) ReadObject() (ret string) {
+	p := iter.PeekObject()
+	return p.String()
+}
+
+func (iter *Iterator) PeekObject() StringPeeker {
 	c := iter.nextToken()
 	switch c {
 	case 'n':
 		iter.skipThreeBytes('u', 'l', 'l')
-		return "" // null
+		return StringPeeker{} // null
 	case '{':
 		c = iter.nextToken()
 		if c == '"' {
-			field := iter.readStringInner()
+			peeker := iter.readRawStringInner()
+			if iter.skipWhitespacesWithoutLoadMore() {
+				peeker.Realize()
+			}
 			c = iter.nextToken()
 			if c != ':' {
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 			}
-			return field
+			return peeker
 		}
 		if c == '}' {
-			return "" // end of object
+			return StringPeeker{} // end of object
 		}
 		iter.ReportError("ReadObject", `expect " after {, but found `+string([]byte{c}))
-		return
+		return StringPeeker{}
 	case ',':
-		field := iter.ReadString()
+		peeker := iter.PeekString()
+		if iter.skipWhitespacesWithoutLoadMore() {
+			peeker.Realize()
+		}
 		c = iter.nextToken()
 		if c != ':' {
 			iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 		}
-		return field
+		return peeker
 	case '}':
-		return "" // end of object
+		return StringPeeker{} // end of object
 	default:
 		iter.ReportError("ReadObject", fmt.Sprintf(`expect { or , or } or n, but found %s`, string([]byte{c})))
-		return
+		return StringPeeker{}
 	}
 }
 
@@ -230,35 +241,4 @@ func (iter *Iterator) readObjectStart() bool {
 	}
 	iter.ReportError("readObjectStart", "expect { or n, but found "+string([]byte{c}))
 	return false
-}
-
-func (iter *Iterator) readObjectFieldAsBytes() (ret []byte) {
-	str := iter.ReadStringAsSlice()
-	if iter.skipWhitespacesWithoutLoadMore() {
-		if ret == nil {
-			ret = make([]byte, len(str))
-			copy(ret, str)
-		}
-		if !iter.loadMore() {
-			return
-		}
-	}
-	if iter.buf[iter.head] != ':' {
-		iter.ReportError("readObjectFieldAsBytes", "expect : after object field, but found "+string([]byte{iter.buf[iter.head]}))
-		return
-	}
-	iter.head++
-	if iter.skipWhitespacesWithoutLoadMore() {
-		if ret == nil {
-			ret = make([]byte, len(str))
-			copy(ret, str)
-		}
-		if !iter.loadMore() {
-			return
-		}
-	}
-	if ret == nil {
-		return str
-	}
-	return ret
 }

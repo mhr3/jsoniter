@@ -120,11 +120,11 @@ func (any *objectLazyAny) Size() int {
 	size := 0
 	iter := any.cfg.BorrowIterator(any.buf)
 	defer any.cfg.ReturnIterator(iter)
-	iter.ReadObjectCB(func(iter *Iterator, field string) bool {
+
+	for p := iter.PeekObject(); !p.IsEmpty(); p = iter.PeekObject() {
 		iter.Skip()
 		size++
-		return true
-	})
+	}
 	return size
 }
 
