@@ -2,6 +2,7 @@ package jsoniter
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -51,6 +52,17 @@ func Test_writeString_should_grow_buffer(t *testing.T) {
 	stream.WriteString("123")
 	should.Nil(stream.Error)
 	should.Equal(`"123"`, string(stream.Buffer()))
+}
+
+func Test_writeTime_should_grow_buffer(t *testing.T) {
+	should := require.New(t)
+	stream := NewStream(ConfigDefault, nil, 0)
+	now := time.Now()
+	stream.WriteTime(now)
+	should.Nil(stream.Error)
+	raw, err := now.MarshalJSON()
+	should.Nil(err)
+	should.Equal(string(raw), string(stream.Buffer()))
 }
 
 type NopWriter struct {
