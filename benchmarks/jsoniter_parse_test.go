@@ -50,7 +50,7 @@ func parseJson(iter *jsoniter.Iterator) {
 			parseJson(iter)
 		}
 	case jsoniter.ObjectValue:
-		for iter.ReadObject() != "" {
+		for rs := iter.ReadObjectRaw(); !rs.IsNil(); rs = iter.ReadObjectRaw() {
 			parseJson(iter)
 		}
 	case jsoniter.InvalidValue:

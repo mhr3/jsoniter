@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +37,7 @@ func Test_decode_null_object_field(t *testing.T) {
 	should := require.New(t)
 	iter := jsoniter.ParseString(jsoniter.ConfigDefault, `[null,"a"]`)
 	iter.ReadArray()
-	if iter.ReadObject() != "" {
+	if _, ok := iter.ReadObject(); ok {
 		t.FailNow()
 	}
 	iter.ReadArray()

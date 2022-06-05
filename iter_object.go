@@ -5,25 +5,30 @@ import (
 	"strings"
 )
 
-// ReadObject read one field from object.
-// If object ended, returns empty string.
+// ReadObject reads one field from object.
+// If object ended, returns empty string and false.
 // Otherwise, returns the field name.
-func (iter *Iterator) ReadObject() (ret string) {
-	p := iter.PeekObject()
-	return p.String()
+func (iter *Iterator) ReadObject() (string, bool) {
+	rs := iter.ReadObjectRaw()
+	if rs.IsNil() {
+		return "", false
+	}
+	return rs.String(), true
 }
 
-func (iter *Iterator) PeekObject() StringPeeker {
+// ReadObjectRaw reads one field from object and returns
+// the field name as RawString.
+func (iter *Iterator) ReadObjectRaw() RawString {
 	c := iter.nextToken()
 	switch c {
 	case 'n':
 		iter.skipThreeBytes('u', 'l', 'l')
-		return StringPeeker{} // null
+		return RawString{} // null
 	case '{':
 		c = iter.nextToken()
 		if c == '"' {
 			peeker := iter.readRawStringInner()
-			if iter.skipWhitespacesWithoutLoadMore() {
+			if !iter.isNextTokenBuffered() {
 				peeker.Realize()
 			}
 			c = iter.nextToken()
@@ -33,13 +38,13 @@ func (iter *Iterator) PeekObject() StringPeeker {
 			return peeker
 		}
 		if c == '}' {
-			return StringPeeker{} // end of object
+			return RawString{} // end of object
 		}
 		iter.ReportError("ReadObject", `expect " after {, but found `+string([]byte{c}))
-		return StringPeeker{}
+		return RawString{}
 	case ',':
-		peeker := iter.PeekString()
-		if iter.skipWhitespacesWithoutLoadMore() {
+		peeker := iter.ReadRawString()
+		if !iter.isNextTokenBuffered() {
 			peeker.Realize()
 		}
 		c = iter.nextToken()
@@ -48,10 +53,10 @@ func (iter *Iterator) PeekObject() StringPeeker {
 		}
 		return peeker
 	case '}':
-		return StringPeeker{} // end of object
+		return RawString{} // end of object
 	default:
 		iter.ReportError("ReadObject", fmt.Sprintf(`expect { or , or } or n, but found %s`, string([]byte{c})))
-		return StringPeeker{}
+		return RawString{}
 	}
 }
 
@@ -117,33 +122,41 @@ func calcHash(str string, caseSensitive bool) int64 {
 	return int64(hash)
 }
 
-// ReadObjectCB read object with callback, the key is ascii only and field name not copied
+// ReadObjectCB read map with callback, the key can be any string
 func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
+	return iter.ReadObjectRawCB(func(i *Iterator, rs RawString) bool {
+		return callback(i, rs.String())
+	})
+}
+
+// ReadObjectCB read map with callback, the key can be any string
+func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) bool {
 	c := iter.nextToken()
-	var field string
 	if c == '{' {
 		if !iter.incrementDepth() {
 			return false
 		}
 		c = iter.nextToken()
 		if c == '"' {
-			field = iter.readStringInner()
+			rs := iter.readRawStringInner()
 			c = iter.nextToken()
 			if c != ':' {
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+				return false
 			}
-			if !callback(iter, field) {
+			if !callback(iter, rs) {
 				iter.decrementDepth()
 				return false
 			}
 			c = iter.nextToken()
 			for c == ',' {
-				field = iter.ReadString()
+				rs = iter.ReadRawString()
 				c = iter.nextToken()
 				if c != ':' {
 					iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+					return false
 				}
-				if !callback(iter, field) {
+				if !callback(iter, rs) {
 					iter.decrementDepth()
 					return false
 				}
@@ -151,7 +164,6 @@ func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
 			}
 			if c != '}' {
 				iter.ReportError("ReadObjectCB", `object not ended with }`)
-				iter.decrementDepth()
 				return false
 			}
 			return iter.decrementDepth()
@@ -171,61 +183,6 @@ func (iter *Iterator) ReadObjectCB(callback func(*Iterator, string) bool) bool {
 	return false
 }
 
-// ReadMapCB read map with callback, the key can be any string
-func (iter *Iterator) ReadMapCB(callback func(*Iterator, string) bool) bool {
-	c := iter.nextToken()
-	if c == '{' {
-		if !iter.incrementDepth() {
-			return false
-		}
-		c = iter.nextToken()
-		if c == '"' {
-			field := iter.readStringInner()
-			if iter.nextToken() != ':' {
-				iter.ReportError("ReadMapCB", "expect : after object field, but found "+string([]byte{c}))
-				iter.decrementDepth()
-				return false
-			}
-			if !callback(iter, field) {
-				iter.decrementDepth()
-				return false
-			}
-			c = iter.nextToken()
-			for c == ',' {
-				field = iter.ReadString()
-				if iter.nextToken() != ':' {
-					iter.ReportError("ReadMapCB", "expect : after object field, but found "+string([]byte{c}))
-					iter.decrementDepth()
-					return false
-				}
-				if !callback(iter, field) {
-					iter.decrementDepth()
-					return false
-				}
-				c = iter.nextToken()
-			}
-			if c != '}' {
-				iter.ReportError("ReadMapCB", `object not ended with }`)
-				iter.decrementDepth()
-				return false
-			}
-			return iter.decrementDepth()
-		}
-		if c == '}' {
-			return iter.decrementDepth()
-		}
-		iter.ReportError("ReadMapCB", `expect " after {, but found `+string([]byte{c}))
-		iter.decrementDepth()
-		return false
-	}
-	if c == 'n' {
-		iter.skipThreeBytes('u', 'l', 'l')
-		return true // null
-	}
-	iter.ReportError("ReadMapCB", `expect { or n, but found `+string([]byte{c}))
-	return false
-}
-
 func (iter *Iterator) readObjectStart() bool {
 	c := iter.nextToken()
 	if c == '{' {
@@ -241,4 +198,17 @@ func (iter *Iterator) readObjectStart() bool {
 	}
 	iter.ReportError("readObjectStart", "expect { or n, but found "+string([]byte{c}))
 	return false
+}
+
+func (iter *Iterator) isObjectEnd() bool {
+	c := iter.nextToken()
+	if c == ',' {
+		return false
+	}
+	if c == '}' {
+		return true
+	}
+
+	iter.ReportError("isObjectEnd", "object ended prematurely, unexpected char "+string([]byte{c}))
+	return true
 }

@@ -12,7 +12,7 @@ func TestReadNumber(t *testing.T) {
 	input := []byte(`{"num":1234567890}`)
 
 	iter := ParseBytes(ConfigDefault, input)
-	key := iter.ReadObject()
+	key, _ := iter.ReadObject()
 	require.Equal(t, "num", key)
 	num := iter.ReadNumber()
 	require.Equal(t, "1234567890", num.String())

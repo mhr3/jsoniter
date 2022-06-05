@@ -120,6 +120,26 @@ func BenchmarkReadLongString(b *testing.B) {
 		}
 	})
 
+	b.Run("simple-raw", func(b *testing.B) {
+		chars := make([]byte, strSize*3/4)
+		_, err := rand.Read(chars)
+		if err != nil {
+			b.Fail()
+		}
+		testString := strconv.Quote(base64.StdEncoding.EncodeToString(chars))
+		rdr := strings.NewReader(testString)
+		iter := jsoniter.Parse(jsoniter.ConfigDefault, rdr, bufSize)
+
+		for i := 0; i < b.N; i++ {
+			rdr.Reset(testString)
+			iter.Reset(rdr)
+			value := iter.ReadRawString()
+			if value.IsNil() {
+				b.Fail()
+			}
+		}
+	})
+
 	b.Run("escaped", func(b *testing.B) {
 		chars := make([]byte, strSize)
 		for i := range chars {

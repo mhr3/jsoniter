@@ -5,9 +5,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/json-iterator/go"
-	"github.com/stretchr/testify/require"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_decode_TextMarshaler_key_map(t *testing.T) {
@@ -17,6 +18,79 @@ func Test_decode_TextMarshaler_key_map(t *testing.T) {
 	str, err := jsoniter.MarshalToString(val)
 	should.Nil(err)
 	should.Equal(`{"1":"2"}`, str)
+}
+
+func Test_decode_invalid_map_key(t *testing.T) {
+	const testInput = `{"f\uha":"2"}`
+
+	testCases := []struct {
+		Name string
+		Iter *jsoniter.Iterator
+	}{
+		{
+			Name: "limited buffer",
+			Iter: jsoniter.Parse(jsoniter.ConfigDefault, strings.NewReader(testInput), 6),
+		},
+		{
+			Name: "unlimited buffer",
+			Iter: jsoniter.ParseString(jsoniter.ConfigDefault, testInput),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			should := require.New(t)
+			iter := tc.Iter
+			for rs := iter.ReadObjectRaw(); !rs.IsNil(); rs = iter.ReadObjectRaw() {
+				_ = rs.String()
+				iter.Skip()
+			}
+
+			should.Error(iter.Error)
+		})
+	}
+}
+
+func Test_decode_valid_map_key(t *testing.T) {
+	const (
+		testInput  = `{"f\uABCD":"2"}`
+		testInput2 = `{"f\t\"\r\n":true}`
+	)
+
+	testCases := []struct {
+		Name        string
+		Iter        *jsoniter.Iterator
+		ExpectedKey string
+	}{
+		{
+			Name:        "limited buffer",
+			Iter:        jsoniter.Parse(jsoniter.ConfigDefault, strings.NewReader(testInput), 6),
+			ExpectedKey: "f\uABCD",
+		},
+		{
+			Name:        "unlimited buffer",
+			Iter:        jsoniter.ParseString(jsoniter.ConfigDefault, testInput),
+			ExpectedKey: "f\uABCD",
+		},
+		{
+			Name:        "limited buffer with many escapes",
+			Iter:        jsoniter.Parse(jsoniter.ConfigDefault, strings.NewReader(testInput2), 2),
+			ExpectedKey: "f\t\"\r\n",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			should := require.New(t)
+			iter := tc.Iter
+			for rs := iter.ReadObjectRaw(); !rs.IsNil(); rs = iter.ReadObjectRaw() {
+				should.Equal(tc.ExpectedKey, rs.String())
+				iter.Skip()
+			}
+
+			should.NoError(iter.Error)
+		})
+	}
 }
 
 func Test_read_map_with_reader(t *testing.T) {

@@ -26,27 +26,10 @@ const (
 	ObjectValue
 )
 
-var hexDigits []byte
 var valueTypes []ValueType
 
 func init() {
-	hexDigits = make([]byte, 256)
-	for i := 0; i < len(hexDigits); i++ {
-		hexDigits[i] = 255
-	}
-	for i := '0'; i <= '9'; i++ {
-		hexDigits[i] = byte(i - '0')
-	}
-	for i := 'a'; i <= 'f'; i++ {
-		hexDigits[i] = byte((i - 'a') + 10)
-	}
-	for i := 'A'; i <= 'F'; i++ {
-		hexDigits[i] = byte((i - 'A') + 10)
-	}
 	valueTypes = make([]ValueType, 256)
-	for i := 0; i < len(valueTypes); i++ {
-		valueTypes[i] = InvalidValue
-	}
 	valueTypes['"'] = StringValue
 	valueTypes['-'] = NumberValue
 	valueTypes['0'] = NumberValue
@@ -164,29 +147,18 @@ func (iter *Iterator) InputOffset() int64 {
 	return iter.inputOffset + int64(iter.head)
 }
 
-func (iter *Iterator) skipWhitespacesWithoutLoadMore() bool {
+func (iter *Iterator) isNextTokenBuffered() bool {
 	for i := iter.head; i < iter.tail; i++ {
 		c := iter.buf[i]
+		// skip whitespaces
 		switch c {
 		case ' ', '\n', '\t', '\r':
 			continue
 		}
 		iter.head = i
-		return false
-	}
-	return true
-}
-
-func (iter *Iterator) isObjectEnd() bool {
-	c := iter.nextToken()
-	if c == ',' {
-		return false
-	}
-	if c == '}' {
 		return true
 	}
-	iter.ReportError("isObjectEnd", "object ended prematurely, unexpected char "+string([]byte{c}))
-	return true
+	return false
 }
 
 func (iter *Iterator) nextToken() byte {
@@ -326,7 +298,7 @@ func (iter *Iterator) Read() interface{} {
 		return arr
 	case ObjectValue:
 		obj := map[string]interface{}{}
-		iter.ReadMapCB(func(Iter *Iterator, field string) bool {
+		iter.ReadObjectCB(func(Iter *Iterator, field string) bool {
 			var elem interface{}
 			iter.ReadVal(&elem)
 			obj[field] = elem

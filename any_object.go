@@ -89,7 +89,7 @@ func (any *objectLazyAny) Get(path ...interface{}) Any {
 			mappedAll := map[string]Any{}
 			iter := any.cfg.BorrowIterator(any.buf)
 			defer any.cfg.ReturnIterator(iter)
-			iter.ReadMapCB(func(iter *Iterator, field string) bool {
+			iter.ReadObjectCB(func(iter *Iterator, field string) bool {
 				mapped := locatePath(iter, path[1:])
 				if mapped.ValueType() != InvalidValue {
 					mappedAll[field] = mapped
@@ -108,7 +108,7 @@ func (any *objectLazyAny) Keys() []string {
 	keys := []string{}
 	iter := any.cfg.BorrowIterator(any.buf)
 	defer any.cfg.ReturnIterator(iter)
-	iter.ReadMapCB(func(iter *Iterator, field string) bool {
+	iter.ReadObjectCB(func(iter *Iterator, field string) bool {
 		iter.Skip()
 		keys = append(keys, field)
 		return true
@@ -121,7 +121,7 @@ func (any *objectLazyAny) Size() int {
 	iter := any.cfg.BorrowIterator(any.buf)
 	defer any.cfg.ReturnIterator(iter)
 
-	for p := iter.PeekObject(); !p.IsEmpty(); p = iter.PeekObject() {
+	for rs := iter.ReadObjectRaw(); !rs.IsNil(); rs = iter.ReadObjectRaw() {
 		iter.Skip()
 		size++
 	}

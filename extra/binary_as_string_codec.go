@@ -1,10 +1,11 @@
 package extra
 
 import (
-	"github.com/json-iterator/go"
-	"github.com/modern-go/reflect2"
 	"unicode/utf8"
 	"unsafe"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/modern-go/reflect2"
 )
 
 // safeSet holds the value true if the ASCII character with the given array
@@ -136,7 +137,8 @@ type binaryAsStringCodec struct {
 }
 
 func (codec *binaryAsStringCodec) Decode(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
-	rawBytes := iter.ReadStringAsSlice()
+	raw := iter.ReadRawString()
+	rawBytes, _ := raw.Bytes()
 	bytes := make([]byte, 0, len(rawBytes))
 	for i := 0; i < len(rawBytes); i++ {
 		b := rawBytes[i]

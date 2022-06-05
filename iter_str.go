@@ -27,6 +27,10 @@ func (iter *Iterator) readStringInner() string {
 
 outerLoop:
 	for iter.Error == nil {
+		// eliminate bounds check inside the loop
+		if iter.head < 0 || iter.tail > len(iter.buf) {
+			return ""
+		}
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
 			if c == '"' {
@@ -66,23 +70,30 @@ outerLoop:
 	return ""
 }
 
-func (iter *Iterator) PeekString() StringPeeker {
+// ReadRawString reads string from iterator without decoding escape sequences.
+// Note that the returned RawString is only valid until the next read from the iterator.
+func (iter *Iterator) ReadRawString() RawString {
 	c := iter.nextToken()
 	switch c {
 	case '"':
 	case 'n':
 		iter.skipThreeBytes('u', 'l', 'l')
-		return StringPeeker{}
+		return RawString{}
 	default:
-		iter.ReportError("PeekString", `expects " or n, but found `+string([]byte{c}))
-		return StringPeeker{}
+		iter.ReportError("ReadRawString", `expects " or n, but found `+string([]byte{c}))
+		return RawString{}
 	}
 
 	return iter.readRawStringInner()
 }
 
-func (iter *Iterator) readRawStringInner() StringPeeker {
-	var copied []byte
+func (iter *Iterator) readRawStringInner() RawString {
+	var (
+		copied     []byte
+		hasEscapes bool
+	)
+
+outerLoop:
 	for iter.Error == nil {
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
@@ -92,26 +103,60 @@ func (iter *Iterator) readRawStringInner() StringPeeker {
 					// super fast path
 					prevHead := iter.head
 					iter.head = i + 1
-					return StringPeeker{buf: iter.buf[prevHead:iter.head], isRaw: true}
+					return RawString{buf: iter.buf[prevHead:iter.head], isRaw: true, hasEscapes: hasEscapes}
 				}
 				prevHead := iter.head
 				iter.head = i + 1
 				copied = append(copied, iter.buf[prevHead:iter.head]...)
-				return StringPeeker{buf: copied}
-			} else if c == '\\' && i+1 < iter.tail {
+				return RawString{buf: copied, hasEscapes: hasEscapes}
+			} else if c == '\\' {
 				// could be escaped double quote, need to skip it
-				i++
+				hasEscapes = true
+
+				if i+1 >= iter.tail {
+					copied = append(copied, iter.buf[iter.head:i+1]...)
+					iter.head = i + 1
+					// load next chunk, resets head, tail and buf
+					if iter.readByte() == 0 {
+						return RawString{}
+					}
+					iter.unreadByte()
+					i = iter.head
+				} else {
+					// look at the next byte directly
+					i++
+				}
+
 				switch iter.buf[i] {
-				case 'u', '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+				case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+				case 'u':
+					prevHead := iter.head
+					iter.head = i + 1
+					// are we about to change iter.buf?
+					if i+4 >= iter.tail {
+						copied = append(copied, iter.buf[prevHead:iter.head]...)
+						var buf [4]byte
+						iter.readAndFillU4(buf[:])
+						copied = append(copied, buf[:]...)
+						continue outerLoop
+					}
+
+					iter.readU4()
+					if iter.Error != nil {
+						return RawString{}
+					}
+					// ensure we copy this escaped section
+					iter.head = prevHead
+					i += 4
 				default:
-					iter.ReportError("PeekString", `invalid escape char after \`)
-					return StringPeeker{}
+					iter.ReportError("ReadRawString", `invalid escape char after \`)
+					return RawString{}
 				}
 				continue
 			} else if c < ' ' {
-				iter.ReportError("PeekString",
+				iter.ReportError("ReadRawString",
 					"invalid control character found: "+strconv.Itoa(int(c)))
-				return StringPeeker{}
+				return RawString{}
 			}
 		}
 
@@ -126,8 +171,8 @@ func (iter *Iterator) readRawStringInner() StringPeeker {
 		iter.unreadByte()
 	}
 
-	iter.ReportError("PeekString", "unexpected end of input")
-	return StringPeeker{}
+	iter.ReportError("ReadRawString", "unexpected end of input")
+	return RawString{}
 }
 
 func (iter *Iterator) readEscapedChar(sb *strings.Builder) {
@@ -186,22 +231,8 @@ start:
 	case 't':
 		sb.WriteByte('\t')
 	default:
-		iter.ReportError("readEscapedChar",
-			`invalid escape char after \`)
+		iter.ReportError("readEscapedChar", `invalid escape char after \`)
 	}
-}
-
-// ReadStringAsSlice read string from iterator without copying into string form.
-// The []byte can not be kept, as it will change after next iterator call.
-func (iter *Iterator) ReadStringAsSlice() (ret []byte) {
-	c := iter.nextToken()
-	if c == '"' {
-		peeker := iter.readRawStringInner()
-		buf, _ := peeker.Bytes()
-		return buf
-	}
-	iter.ReportError("ReadStringAsSlice", `expects " or n, but found `+string([]byte{c}))
-	return
 }
 
 func (iter *Iterator) readU4() (ret rune) {
@@ -210,58 +241,57 @@ func (iter *Iterator) readU4() (ret rune) {
 		if iter.Error != nil {
 			return
 		}
-		if c >= '0' && c <= '9' {
-			ret = ret*16 + rune(c-'0')
-		} else if c >= 'a' && c <= 'f' {
-			ret = ret*16 + rune(c-'a'+10)
-		} else if c >= 'A' && c <= 'F' {
-			ret = ret*16 + rune(c-'A'+10)
-		} else {
-			iter.ReportError("readU4", "expects 0~9 or a~f, but found "+string([]byte{c}))
-			return
+		c -= '0'
+		if c <= 9 {
+			ret = ret*16 + rune(c)
+			continue
 		}
+		c -= 'A' - '0'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
+		c -= 'a' - 'A'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
+
+		iter.ReportError("readU4", "invalid hex char")
+		return
 	}
 	return ret
 }
 
-type StringPeeker struct {
-	buf   []byte
-	isRaw bool
-}
-
-func (p StringPeeker) IsEmpty() bool {
-	return p.buf == nil
-}
-
-func (p *StringPeeker) Realize() {
-	if p.isRaw {
-		bufCpy := make([]byte, len(p.buf))
-		copy(bufCpy, p.buf)
-		p.buf = bufCpy
-		p.isRaw = false
-	}
-}
-
-func (p *StringPeeker) String() string {
-	if p.buf == nil {
-		return ""
+func (iter *Iterator) readAndFillU4(buf []byte) (ret rune) {
+	if len(buf) < 4 {
+		panic("buffer too small")
 	}
 
-	iter := Iterator{
-		buf:  p.buf,
-		tail: len(p.buf),
-	}
-	return iter.readStringInner()
-}
+	for i := 0; i < 4; i++ {
+		c := iter.readByte()
+		if iter.Error != nil {
+			return
+		}
+		buf[i] = c
+		c -= '0'
+		if c <= 9 {
+			ret = ret*16 + rune(c)
+			continue
+		}
+		c -= 'A' - '0'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
+		c -= 'a' - 'A'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
 
-// Bytes returns a buffer and true if this is a direct view into iter,
-// or false if the buffer is a copy.
-// Note that the buffer is only valid until the next read from Iterator.
-// Use Realize before reading further from the Iterator.
-func (p *StringPeeker) Bytes() ([]byte, bool) {
-	raw := p.buf
-	if len(raw) > 0 {
-		raw = raw[:len(raw)-1]
+		iter.ReportError("readU4", "invalid hex char")
+		return
 	}
-	return raw, p.isRaw
+	return ret
 }

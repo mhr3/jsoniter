@@ -78,8 +78,8 @@ func (iter *Iterator) skipString() {
 
 func (iter *Iterator) skipObject() {
 	iter.unreadByte()
-	iter.ReadObjectCB(func(i *Iterator, s string) bool {
-		iter.Skip()
+	iter.ReadObjectRawCB(func(i *Iterator, rs RawString) bool {
+		i.Skip()
 		return true
 	})
 }
