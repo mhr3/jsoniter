@@ -183,6 +183,11 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 	return false
 }
 
+// ReadMapCB is an alias for ReadObjectCB
+func (iter *Iterator) ReadMapCB(callback func(*Iterator, string) bool) bool {
+	return iter.ReadObjectCB(callback)
+}
+
 func (iter *Iterator) readObjectStart() bool {
 	c := iter.nextToken()
 	if c == '{' {
