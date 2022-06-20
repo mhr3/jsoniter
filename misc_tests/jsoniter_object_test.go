@@ -5,17 +5,19 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/json-iterator/go"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_empty_object(t *testing.T) {
 	should := require.New(t)
 	iter := jsoniter.ParseString(jsoniter.ConfigDefault, `{}`)
-	field := iter.ReadObject()
+	field, ok := iter.ReadObject()
 	should.Equal("", field)
+	should.False(ok)
 	iter = jsoniter.ParseString(jsoniter.ConfigDefault, `{}`)
 	iter.ReadObjectCB(func(iter *jsoniter.Iterator, field string) bool {
 		should.FailNow("should not call")
@@ -26,12 +28,14 @@ func Test_empty_object(t *testing.T) {
 func Test_one_field(t *testing.T) {
 	should := require.New(t)
 	iter := jsoniter.ParseString(jsoniter.ConfigDefault, `{"a": "stream"}`)
-	field := iter.ReadObject()
+	field, ok := iter.ReadObject()
 	should.Equal("a", field)
+	should.True(ok)
 	value := iter.ReadString()
 	should.Equal("stream", value)
-	field = iter.ReadObject()
+	field, ok = iter.ReadObject()
 	should.Equal("", field)
+	should.False(ok)
 	iter = jsoniter.ParseString(jsoniter.ConfigDefault, `{"a": "stream"}`)
 	should.True(iter.ReadObjectCB(func(iter *jsoniter.Iterator, field string) bool {
 		should.Equal("a", field)
@@ -44,18 +48,18 @@ func Test_one_field(t *testing.T) {
 func Test_two_field(t *testing.T) {
 	should := require.New(t)
 	iter := jsoniter.ParseString(jsoniter.ConfigDefault, `{ "a": "stream" , "c": "d" }`)
-	field := iter.ReadObject()
+	field, _ := iter.ReadObject()
 	should.Equal("a", field)
 	value := iter.ReadString()
 	should.Equal("stream", value)
-	field = iter.ReadObject()
+	field, _ = iter.ReadObject()
 	should.Equal("c", field)
 	value = iter.ReadString()
 	should.Equal("d", value)
-	field = iter.ReadObject()
+	field, _ = iter.ReadObject()
 	should.Equal("", field)
 	iter = jsoniter.ParseString(jsoniter.ConfigDefault, `{"field1": "1", "field2": 2}`)
-	for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
+	for field, ok := iter.ReadObject(); ok; field, ok = iter.ReadObject() {
 		switch field {
 		case "field1":
 			iter.ReadString()

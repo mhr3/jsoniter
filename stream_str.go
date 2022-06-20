@@ -215,7 +215,7 @@ var safeSet = [utf8.RuneSelf]bool{
 	'\u007f': true,
 }
 
-var hex = "0123456789abcdef"
+const hexChars = "0123456789abcdef"
 
 // WriteStringWithHTMLEscaped write string to stream with html special characters escaped
 func (stream *Stream) WriteStringWithHTMLEscaped(s string) {
@@ -266,7 +266,7 @@ func writeStringSlowPathWithHTMLEscaped(stream *Stream, i int, s string, valLen 
 				// user-controlled strings are rendered into JSON
 				// and served to some browsers.
 				stream.WriteRaw(`\u00`)
-				stream.writeTwoBytes(hex[b>>4], hex[b&0xF])
+				stream.writeTwoBytes(hexChars[b>>4], hexChars[b&0xF])
 			}
 			i++
 			start = i
@@ -294,7 +294,7 @@ func writeStringSlowPathWithHTMLEscaped(stream *Stream, i int, s string, valLen 
 				stream.WriteRaw(s[start:i])
 			}
 			stream.WriteRaw(`\u202`)
-			stream.writeByte(hex[c&0xF])
+			stream.writeByte(hexChars[c&0xF])
 			i += size
 			start = i
 			continue
@@ -356,7 +356,7 @@ func writeStringSlowPath(stream *Stream, i int, s string, valLen int) {
 				// user-controlled strings are rendered into JSON
 				// and served to some browsers.
 				stream.WriteRaw(`\u00`)
-				stream.writeTwoBytes(hex[b>>4], hex[b&0xF])
+				stream.writeTwoBytes(hexChars[b>>4], hexChars[b&0xF])
 			}
 			i++
 			start = i

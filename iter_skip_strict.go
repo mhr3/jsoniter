@@ -1,4 +1,5 @@
-//+build !jsoniter_sloppy
+//go:build !jsoniter_sloppy
+// +build !jsoniter_sloppy
 
 package jsoniter
 
@@ -72,13 +73,13 @@ func (iter *Iterator) skipString() {
 		}
 	}
 
-	iter.readStringInner()
+	iter.readRawStringInner()
 }
 
 func (iter *Iterator) skipObject() {
 	iter.unreadByte()
-	iter.ReadObjectCB(func(iter *Iterator, field string) bool {
-		iter.Skip()
+	iter.ReadObjectRawCB(func(i *Iterator, rs RawString) bool {
+		i.Skip()
 		return true
 	})
 }

@@ -76,7 +76,7 @@ func Test_iterator_offsets(t *testing.T) {
 	// read third line
 	should.Equal(jsoniter.ObjectValue, iter.WhatIsNext())
 	should.Equal(startOffsets[2], iter.InputOffset())
-	for iter.ReadObject() != "" {
+	for _, ok := iter.ReadObject(); ok; _, ok = iter.ReadObject() {
 		iter.Skip()
 	}
 	should.NoError(iter.Error)
@@ -84,7 +84,7 @@ func Test_iterator_offsets(t *testing.T) {
 	// read fourth line
 	should.Equal(jsoniter.ObjectValue, iter.WhatIsNext())
 	should.Equal(startOffsets[4], iter.InputOffset())
-	for iter.ReadObject() != "" {
+	for _, ok := iter.ReadObject(); ok; _, ok = iter.ReadObject() {
 		iter.Skip()
 	}
 	should.NoError(iter.Error)

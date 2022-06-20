@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -151,7 +151,7 @@ func Benchmark_jsoniter_skip(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		result := TestResp{}
 		iter := jsoniter.ParseBytes(jsoniter.ConfigDefault, input)
-		for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
+		for field, _ := iter.ReadObject(); field != ""; field, _ = iter.ReadObject() {
 			switch field {
 			case "code":
 				result.Code = iter.ReadUint64()

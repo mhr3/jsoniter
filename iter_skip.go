@@ -1,6 +1,8 @@
 package jsoniter
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // ReadNil reads a json object as nil and
 // returns whether it's a nil or not
