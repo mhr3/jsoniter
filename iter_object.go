@@ -27,15 +27,15 @@ func (iter *Iterator) ReadObjectRaw() RawString {
 	case '{':
 		c = iter.nextToken()
 		if c == '"' {
-			peeker := iter.readRawStringInner()
+			rs := iter.readRawStringInner()
 			if !iter.isNextTokenBuffered() {
-				peeker.Realize()
+				rs.Realize()
 			}
 			c = iter.nextToken()
 			if c != ':' {
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 			}
-			return peeker
+			return rs
 		}
 		if c == '}' {
 			return RawString{} // end of object
@@ -43,15 +43,15 @@ func (iter *Iterator) ReadObjectRaw() RawString {
 		iter.ReportError("ReadObject", `expect " after {, but found `+string([]byte{c}))
 		return RawString{}
 	case ',':
-		peeker := iter.ReadRawString()
+		rs := iter.ReadRawString()
 		if !iter.isNextTokenBuffered() {
-			peeker.Realize()
+			rs.Realize()
 		}
 		c = iter.nextToken()
 		if c != ':' {
 			iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 		}
-		return peeker
+		return rs
 	case '}':
 		return RawString{} // end of object
 	default:
@@ -139,6 +139,9 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 		c = iter.nextToken()
 		if c == '"' {
 			rs := iter.readRawStringInner()
+			if !iter.isNextTokenBuffered() {
+				rs.Realize()
+			}
 			c = iter.nextToken()
 			if c != ':' {
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
@@ -151,6 +154,9 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 			c = iter.nextToken()
 			for c == ',' {
 				rs = iter.ReadRawString()
+				if !iter.isNextTokenBuffered() {
+					rs.Realize()
+				}
 				c = iter.nextToken()
 				if c != ':' {
 					iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
