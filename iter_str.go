@@ -34,7 +34,8 @@ outerLoop:
 		}
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
-			if c == '"' {
+			switch {
+			case c == '"':
 				if sb.Len() == 0 {
 					// super fast path
 					res := iter.buf[iter.head:i]
@@ -44,12 +45,12 @@ outerLoop:
 				sb.Write(iter.buf[iter.head:i])
 				iter.head = i + 1
 				return sb.String()
-			} else if c == '\\' {
+			case c == '\\':
 				sb.Write(iter.buf[iter.head:i])
 				iter.head = i + 1
 				iter.readEscapedChar(&sb)
 				continue outerLoop
-			} else if c < ' ' {
+			case c < ' ':
 				iter.ReportError("ReadString",
 					"invalid control character found: "+strconv.Itoa(int(c)))
 				return ""
@@ -103,37 +104,12 @@ outerLoop:
 		}
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
-			if readingEscape {
-				readingEscape = false
-				switch c {
-				case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
-				case 'u':
-					prevHead := iter.head
-					iter.head = i + 1
-					// are we about to change iter.buf?
-					if i+4 >= iter.tail {
-						copied.Write(iter.buf[prevHead:iter.head])
-						var buf [4]byte
-						iter.readAndFillU4(buf[:])
-						copied.Write(buf[:])
-						continue outerLoop
-					}
-
-					if iter.parseU4() == -1 {
-						iter.ReportError("ReadRawString", "invalid unicode escape sequence")
-						return RawString{}
-					}
-					// it shouldn't be necessary to break out of the loop, but
-					// for some reason the compiler doesn't like this branch
-					// and inserts slice bounds check around the iter.buf[i] read
-					// without the "continue outerLoop"
-					copied.Write(iter.buf[prevHead:iter.head])
-					continue outerLoop
-				default:
-					iter.ReportError("ReadRawString", `invalid escape char after \`)
-					return RawString{}
+			switch {
+			case c == '"':
+				if readingEscape {
+					readingEscape = false
+					continue
 				}
-			} else if c == '"' {
 				// careful, we're copying the ending double quote into the buffer
 				if copied.Len() == 0 {
 					// super fast path
@@ -145,13 +121,48 @@ outerLoop:
 				iter.head = i + 1
 				copied.Write(iter.buf[prevHead:iter.head])
 				return RawString{buf: copied.Bytes(), hasEscapes: hasEscapes}
-			} else if c == '\\' {
-				// could be escaped double quote, need to skip it
+			case c == '\\':
+				// toggle readingEscape
+				readingEscape = readingEscape != true
 				hasEscapes = true
-				readingEscape = true
-			} else if c < ' ' {
+				continue
+			case c < ' ':
 				iter.ReportError("ReadRawString",
 					"invalid control character found: "+strconv.Itoa(int(c)))
+				return RawString{}
+			default:
+				if !readingEscape {
+					continue
+				}
+			}
+
+			readingEscape = false
+			switch c {
+			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+			case 'u':
+				prevHead := iter.head
+				iter.head = i + 1
+				// are we about to change iter.buf?
+				if i+4 >= iter.tail {
+					copied.Write(iter.buf[prevHead:iter.head])
+					var buf [4]byte
+					iter.readAndFillU4(buf[:])
+					copied.Write(buf[:])
+					continue outerLoop
+				}
+
+				if iter.parseU4() == -1 {
+					iter.ReportError("ReadRawString", "invalid unicode escape sequence")
+					return RawString{}
+				}
+				// it shouldn't be necessary to break out of the loop, but
+				// for some reason the compiler doesn't like this branch
+				// and inserts slice bounds check around the iter.buf[i] read
+				// without the "continue outerLoop"
+				copied.Write(iter.buf[prevHead:iter.head])
+				continue outerLoop
+			default:
+				iter.ReportError("ReadRawString", `invalid escape char after \`)
 				return RawString{}
 			}
 		}
