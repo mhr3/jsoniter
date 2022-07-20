@@ -158,17 +158,24 @@ non_decimal_loop:
 func (iter *Iterator) readNumberAsBytes(buf []byte) []byte {
 load_loop:
 	for {
+		// eliminate bounds check
+		if iter.head < 0 || iter.tail > len(iter.buf) {
+			break
+		}
+
+		end := iter.head
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
 			switch c {
 			case '+', '-', '.', 'e', 'E', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				buf = append(buf, c)
-				continue
+				end++
 			default:
+				buf = append(buf, iter.buf[iter.head:end]...)
 				iter.head = i
 				break load_loop
 			}
 		}
+		buf = append(buf, iter.buf[iter.head:end]...)
 		if !iter.loadMore() {
 			break
 		}
