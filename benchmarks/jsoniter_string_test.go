@@ -143,8 +143,8 @@ func BenchmarkReadLongString(b *testing.B) {
 	b.Run("escaped", func(b *testing.B) {
 		chars := make([]byte, strSize)
 		for i := range chars {
-			// ascii 48-122 ('0'-'z')
-			chars[i] = byte(rand.Intn(75)) + 48
+			// ascii 32-122 (' '-'z')
+			chars[i] = byte(rand.Intn(91)) + 32
 		}
 		testString := strconv.Quote(string(chars))
 		rdr := strings.NewReader(testString)
@@ -155,6 +155,26 @@ func BenchmarkReadLongString(b *testing.B) {
 			iter.Reset(rdr)
 			value := iter.ReadString()
 			if value == "" {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("escaped-raw", func(b *testing.B) {
+		chars := make([]byte, strSize)
+		for i := range chars {
+			// ascii 32-122 (' '-'z')
+			chars[i] = byte(rand.Intn(91)) + 32
+		}
+		testString := strconv.Quote(string(chars))
+		rdr := strings.NewReader(testString)
+		iter := jsoniter.Parse(jsoniter.ConfigDefault, rdr, bufSize)
+
+		for i := 0; i < b.N; i++ {
+			rdr.Reset(testString)
+			iter.Reset(rdr)
+			value := iter.ReadRawString()
+			if value.IsNil() {
 				b.Fail()
 			}
 		}

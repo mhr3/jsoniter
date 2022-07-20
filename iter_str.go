@@ -119,11 +119,14 @@ outerLoop:
 						continue outerLoop
 					}
 
-					iter.readU4()
-					if iter.Error != nil {
+					if iter.parseU4() == -1 {
+						iter.ReportError("ReadRawString", "invalid unicode escape sequence")
 						return RawString{}
 					}
-					// ensure we copy this escaped section
+					// it shouldn't be necessary to break out of the loop, but
+					// for some reason the compiler doesn't like this branch
+					// and inserts slice bounds check around the iter.buf[i] read
+					// without the "continue outerLoop"
 					copied.Write(iter.buf[prevHead:iter.head])
 					continue outerLoop
 				default:
@@ -228,7 +231,46 @@ start:
 	}
 }
 
+func (iter *Iterator) parseU4() (ret rune) {
+	// eliminate bounds check inside the loop
+	end := iter.head + 4
+	if iter.head < 0 || end > len(iter.buf) {
+		return -1
+	}
+
+	for i := iter.head; i < end; i++ {
+		c := iter.buf[i]
+		c -= '0'
+		if c <= 9 {
+			ret = ret*16 + rune(c)
+			continue
+		}
+		c -= 'A' - '0'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
+		c -= 'a' - 'A'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
+
+		return -1
+	}
+	iter.head = end
+	return ret
+}
+
 func (iter *Iterator) readU4() (ret rune) {
+	if iter.tail-iter.head >= 4 {
+		if ret = iter.parseU4(); ret < 0 {
+			iter.ReportError("readU4", "invalid hex char")
+			return 0
+		}
+		return ret
+	}
+
 	for i := 0; i < 4; i++ {
 		c := iter.readByte()
 		if iter.Error != nil {

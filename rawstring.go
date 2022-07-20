@@ -54,3 +54,8 @@ func (r *RawString) Bytes() ([]byte, bool) {
 	}
 	return raw, r.isRaw
 }
+
+// ContainsEscapes returns true if the string contains escape sequences.
+func (r *RawString) ContainsEscapes() bool {
+	return r.hasEscapes
+}
