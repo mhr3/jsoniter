@@ -1,6 +1,7 @@
 package jsoniter
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 	"unicode/utf16"
@@ -33,7 +34,8 @@ outerLoop:
 		}
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
-			if c == '"' {
+			switch {
+			case c == '"':
 				if sb.Len() == 0 {
 					// super fast path
 					res := iter.buf[iter.head:i]
@@ -43,12 +45,12 @@ outerLoop:
 				sb.Write(iter.buf[iter.head:i])
 				iter.head = i + 1
 				return sb.String()
-			} else if c == '\\' {
+			case c == '\\':
 				sb.Write(iter.buf[iter.head:i])
 				iter.head = i + 1
 				iter.readEscapedChar(&sb)
 				continue outerLoop
-			} else if c < ' ' {
+			case c < ' ':
 				iter.ReportError("ReadString",
 					"invalid control character found: "+strconv.Itoa(int(c)))
 				return ""
@@ -89,17 +91,27 @@ func (iter *Iterator) ReadRawString() RawString {
 
 func (iter *Iterator) readRawStringInner() RawString {
 	var (
-		copied     []byte
-		hasEscapes bool
+		copied        bytes.Buffer
+		readingEscape bool
+		hasEscapes    bool
 	)
 
 outerLoop:
 	for iter.Error == nil {
+		// eliminate bounds check inside the loop
+		if iter.head < 0 || iter.tail > len(iter.buf) {
+			return RawString{}
+		}
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
-			if c == '"' {
+			switch {
+			case c == '"':
+				if readingEscape {
+					readingEscape = false
+					continue
+				}
 				// careful, we're copying the ending double quote into the buffer
-				if copied == nil {
+				if copied.Len() == 0 {
 					// super fast path
 					prevHead := iter.head
 					iter.head = i + 1
@@ -107,61 +119,56 @@ outerLoop:
 				}
 				prevHead := iter.head
 				iter.head = i + 1
-				copied = append(copied, iter.buf[prevHead:iter.head]...)
-				return RawString{buf: copied, hasEscapes: hasEscapes}
-			} else if c == '\\' {
-				// could be escaped double quote, need to skip it
+				copied.Write(iter.buf[prevHead:iter.head])
+				return RawString{buf: copied.Bytes(), hasEscapes: hasEscapes}
+			case c == '\\':
+				// toggle readingEscape
+				readingEscape = readingEscape != true
 				hasEscapes = true
-
-				if i+1 >= iter.tail {
-					copied = append(copied, iter.buf[iter.head:i+1]...)
-					iter.head = i + 1
-					// load next chunk, resets head, tail and buf
-					if iter.readByte() == 0 {
-						return RawString{}
-					}
-					iter.unreadByte()
-					i = iter.head
-				} else {
-					// look at the next byte directly
-					i++
-				}
-
-				switch iter.buf[i] {
-				case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
-				case 'u':
-					prevHead := iter.head
-					iter.head = i + 1
-					// are we about to change iter.buf?
-					if i+4 >= iter.tail {
-						copied = append(copied, iter.buf[prevHead:iter.head]...)
-						var buf [4]byte
-						iter.readAndFillU4(buf[:])
-						copied = append(copied, buf[:]...)
-						continue outerLoop
-					}
-
-					iter.readU4()
-					if iter.Error != nil {
-						return RawString{}
-					}
-					// ensure we copy this escaped section
-					iter.head = prevHead
-					i += 4
-				default:
-					iter.ReportError("ReadRawString", `invalid escape char after \`)
-					return RawString{}
-				}
 				continue
-			} else if c < ' ' {
+			case c < ' ':
 				iter.ReportError("ReadRawString",
 					"invalid control character found: "+strconv.Itoa(int(c)))
+				return RawString{}
+			default:
+				if !readingEscape {
+					continue
+				}
+			}
+
+			readingEscape = false
+			switch c {
+			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+			case 'u':
+				prevHead := iter.head
+				iter.head = i + 1
+				// are we about to change iter.buf?
+				if i+4 >= iter.tail {
+					copied.Write(iter.buf[prevHead:iter.head])
+					var buf [4]byte
+					iter.readAndFillU4(buf[:])
+					copied.Write(buf[:])
+					continue outerLoop
+				}
+
+				if iter.parseU4() == -1 {
+					iter.ReportError("ReadRawString", "invalid unicode escape sequence")
+					return RawString{}
+				}
+				// it shouldn't be necessary to break out of the loop, but
+				// for some reason the compiler doesn't like this branch
+				// and inserts slice bounds check around the iter.buf[i] read
+				// without the "continue outerLoop"
+				copied.Write(iter.buf[prevHead:iter.head])
+				continue outerLoop
+			default:
+				iter.ReportError("ReadRawString", `invalid escape char after \`)
 				return RawString{}
 			}
 		}
 
 		// copy buffer and load more
-		copied = append(copied, iter.buf[iter.head:iter.tail]...)
+		copied.Write(iter.buf[iter.head:iter.tail])
 		iter.head = iter.tail
 
 		// load next chunk
@@ -235,7 +242,46 @@ start:
 	}
 }
 
+func (iter *Iterator) parseU4() (ret rune) {
+	// eliminate bounds check inside the loop
+	end := iter.head + 4
+	if iter.head < 0 || end > len(iter.buf) {
+		return -1
+	}
+
+	for i := iter.head; i < end; i++ {
+		c := iter.buf[i]
+		c -= '0'
+		if c <= 9 {
+			ret = ret*16 + rune(c)
+			continue
+		}
+		c -= 'A' - '0'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
+		c -= 'a' - 'A'
+		if c <= 5 {
+			ret = ret*16 + rune(c+10)
+			continue
+		}
+
+		return -1
+	}
+	iter.head = end
+	return ret
+}
+
 func (iter *Iterator) readU4() (ret rune) {
+	if iter.tail-iter.head >= 4 {
+		if ret = iter.parseU4(); ret < 0 {
+			iter.ReportError("readU4", "invalid hex char")
+			return 0
+		}
+		return ret
+	}
+
 	for i := 0; i < 4; i++ {
 		c := iter.readByte()
 		if iter.Error != nil {
