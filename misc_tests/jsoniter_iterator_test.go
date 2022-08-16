@@ -22,7 +22,7 @@ func Test_bad_case(t *testing.T) {
 			for iter.ReadArray() {
 				for field, _ := iter.ReadObject(); field != ""; field, _ = iter.ReadObject() {
 					if field == "Bit" {
-						iter.ReadRawString()
+						iter.ReadStringAsSlice()
 					} else {
 						if field != "Size" && field != "EndIndex" && field != "EndMask" && field != "Good" && field != "Flush" {
 							t.Fatal(field)
