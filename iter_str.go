@@ -25,6 +25,7 @@ func (iter *Iterator) ReadString() string {
 
 // ReadStringAsSlice read string from iterator without copying into string form.
 // The []byte can not be kept, as it will change after next iterator call.
+// DEPRECATED: Use ReadRawString instead
 func (iter *Iterator) ReadStringAsSlice() (ret []byte) {
 	return iter.ReadRawString().buf
 }
