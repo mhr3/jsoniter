@@ -179,6 +179,24 @@ func (iter *Iterator) nextToken() byte {
 	}
 }
 
+func (iter *Iterator) nextTokenChecked() (byte, bool) {
+	// a variation of skip whitespaces, returning the next non-whitespace token
+	for {
+		for i := iter.head; i < iter.tail; i++ {
+			c := iter.buf[i]
+			switch c {
+			case ' ', '\n', '\t', '\r':
+				continue
+			}
+			iter.head = i + 1
+			return c, true
+		}
+		if !iter.loadMore() {
+			return 0, false
+		}
+	}
+}
+
 // ReportError record a error in iterator instance with current position.
 func (iter *Iterator) ReportError(operation string, msg string) {
 	if iter.Error != nil {
