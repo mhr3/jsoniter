@@ -2,27 +2,12 @@ package test
 
 import (
 	"encoding/json"
-	"github.com/json-iterator/go"
 	"io/ioutil"
 	"os"
 	"testing"
-)
 
-//func Test_large_file(t *testing.T) {
-//	file, err := os.Open("/tmp/large-file.json")
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//	iter := Parse(file, 4096)
-//	count := 0
-//	for iter.ReadArray() {
-//		iter.Skip()
-//		count++
-//	}
-//	if count != 11351 {
-//		t.Fatal(count)
-//	}
-//}
+	jsoniter "github.com/json-iterator/go"
+)
 
 func init() {
 	ioutil.WriteFile("/tmp/large-file.json", []byte(`[{
@@ -125,32 +110,45 @@ func init() {
 50000	     34244 ns/op	    6744 B/op	      14 allocs/op
 */
 func Benchmark_jsoniter_large_file(b *testing.B) {
+	f, err := os.Open("/tmp/large-file.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		b.Fatal(err)
+	}
+	f.Close()
+
 	b.ReportAllocs()
+	b.ResetTimer()
+
 	for n := 0; n < b.N; n++ {
-		file, _ := os.Open("/tmp/large-file.json")
-		iter := jsoniter.Parse(jsoniter.ConfigDefault, file, 4096)
-		count := 0
-		iter.ReadArrayCB(func(iter *jsoniter.Iterator) bool {
-			// Skip() is strict by default, use --tags jsoniter-sloppy to skip without validation
-			iter.Skip()
-			count++
-			return true
-		})
-		file.Close()
-		if iter.Error != nil {
-			b.Error(iter.Error)
+		result := []struct{}{}
+		err := jsoniter.Unmarshal(data, &result)
+		if err != nil {
+			b.Error(err)
 		}
 	}
 }
 
 func Benchmark_json_large_file(b *testing.B) {
+	f, err := os.Open("/tmp/large-file.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		b.Fatal(err)
+	}
+	f.Close()
+
 	b.ReportAllocs()
+	b.ResetTimer()
+
 	for n := 0; n < b.N; n++ {
-		file, _ := os.Open("/tmp/large-file.json")
-		bytes, _ := ioutil.ReadAll(file)
-		file.Close()
 		result := []struct{}{}
-		err := json.Unmarshal(bytes, &result)
+		err := json.Unmarshal(data, &result)
 		if err != nil {
 			b.Error(err)
 		}
