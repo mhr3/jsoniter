@@ -1,7 +1,6 @@
 package jsoniter
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"math/big"
@@ -27,6 +26,7 @@ func init() {
 	floatDigits['}'] = endOfNumber
 	floatDigits[' '] = endOfNumber
 	floatDigits['\t'] = endOfNumber
+	floatDigits['\r'] = endOfNumber
 	floatDigits['\n'] = endOfNumber
 	floatDigits['.'] = dotInNumber
 }
@@ -155,7 +155,22 @@ non_decimal_loop:
 	return iter.readFloat32SlowPath()
 }
 
+const (
+	numberParseState0 byte = iota
+	numberParseState1
+	numberParseState2
+	numberParseState3
+	numberParseState4
+	numberParseState5
+	numberParseState6
+	numberParseState7
+	numberParseStateEnd
+	numberParseStateError
+)
+
 func (iter *Iterator) readNumberAsBytes(buf []byte) []byte {
+	end := -1
+	state := numberParseState0
 load_loop:
 	for {
 		// eliminate bounds check
@@ -163,16 +178,104 @@ load_loop:
 			break
 		}
 
-		end := iter.head
+		end = iter.head
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
-			switch c {
-			case '+', '-', '.', 'e', 'E', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				end++
-			default:
-				buf = append(buf, iter.buf[iter.head:end]...)
-				iter.head = i
-				break load_loop
+
+			switch state {
+			case numberParseState0:
+				switch c {
+				case '-':
+					state = numberParseState1
+					end++
+				case '0':
+					state = numberParseState2
+					end++
+				case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					state = numberParseState3
+					end++
+				default:
+					state = numberParseStateError
+					break load_loop
+				}
+			case numberParseState1:
+				switch c {
+				case '0':
+					state = numberParseState2
+					end++
+				case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					state = numberParseState3
+					end++
+				default:
+					state = numberParseStateError
+					break load_loop
+				}
+			case numberParseState2:
+				switch c {
+				case '.':
+					state = numberParseState4
+					end++
+				case 'e', 'E':
+					state = numberParseState6
+					end++
+				default:
+					state = numberParseStateEnd
+					break load_loop
+				}
+			case numberParseState3:
+				switch c {
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					end++
+				case '.':
+					state = numberParseState4
+					end++
+				case 'e', 'E':
+					state = numberParseState6
+					end++
+				default:
+					state = numberParseStateEnd
+					break load_loop
+				}
+			case numberParseState4:
+				switch c {
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					state = numberParseState5
+					end++
+				default:
+					state = numberParseStateError
+					break load_loop
+				}
+			case numberParseState5:
+				switch c {
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					end++
+				case 'e', 'E':
+					state = numberParseState6
+					end++
+				default:
+					state = numberParseStateEnd
+					break load_loop
+				}
+			case numberParseState6:
+				switch c {
+				case '+', '-':
+					state = numberParseState7
+					end++
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					state = numberParseState7
+					end++
+				default:
+					state = numberParseStateError
+					break load_loop
+				}
+			case numberParseState7:
+				switch c {
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					end++
+				default:
+					state = numberParseStateEnd
+					break load_loop
+				}
 			}
 		}
 		buf = append(buf, iter.buf[iter.head:end]...)
@@ -183,9 +286,26 @@ load_loop:
 	if iter.Error != nil && iter.Error != io.EOF {
 		return nil
 	}
-	if len(buf) == 0 {
+
+	// are we in an accepting state?
+	switch state {
+	case numberParseState2, numberParseState3, numberParseState5, numberParseState7:
+		// yep
+		buf = append(buf, iter.buf[iter.head:end]...)
+		iter.head = end
+	case numberParseStateEnd:
+		// we need to ensure the next character is something that terminates the number
+		if floatDigits[iter.buf[end]] != endOfNumber {
+			iter.ReportError("readNumberAsBytes", "unexpected character after number")
+			return nil
+		}
+		buf = append(buf, iter.buf[iter.head:end]...)
+		iter.head = end
+	default:
 		iter.ReportError("readNumberAsBytes", "invalid number")
+		return nil
 	}
+
 	return buf
 }
 
@@ -201,11 +321,6 @@ func (iter *Iterator) readFloat32SlowPath() (ret float32) {
 	buf := [24]byte{}
 	strBuf := iter.readNumberAsBytes(buf[:0])
 	if iter.Error != nil && iter.Error != io.EOF {
-		return
-	}
-
-	if errMsg := validatePositiveFloat(strBuf); errMsg != "" {
-		iter.ReportError("readFloat32SlowPath", errMsg)
 		return
 	}
 	val, err := strconv.ParseFloat(string(strBuf), 32)
@@ -315,39 +430,12 @@ func (iter *Iterator) readFloat64SlowPath() (ret float64) {
 	if iter.Error != nil && iter.Error != io.EOF {
 		return
 	}
-	errMsg := validatePositiveFloat(strBuf)
-	if errMsg != "" {
-		iter.ReportError("readFloat64SlowPath", errMsg)
-		return
-	}
 	val, err := strconv.ParseFloat(string(strBuf), 64)
 	if err != nil {
 		iter.Error = err
 		return
 	}
 	return val
-}
-
-func validatePositiveFloat(input []byte) string {
-	// strconv.ParseFloat is not validating `1.` or `1.e1`
-	if len(input) == 0 {
-		return "empty number"
-	}
-	if input[0] == '-' {
-		return "-- is not valid"
-	}
-	dotPos := bytes.IndexByte(input, '.')
-	if dotPos != -1 {
-		if dotPos == len(input)-1 {
-			return "dot can not be last character"
-		}
-		switch input[dotPos+1] {
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		default:
-			return "missing digit after dot"
-		}
-	}
-	return ""
 }
 
 // ReadNumber read json.Number
@@ -357,16 +445,5 @@ func (iter *Iterator) ReadNumber() (ret json.Number) {
 
 // ReadNumberAsSlice reads a json number into the provided byte slice (can be nil)
 func (iter *Iterator) ReadNumberAsSlice(buf []byte) []byte {
-	buf = iter.readNumberAsBytes(buf)
-
-	checked := buf
-	if len(buf) > 0 && buf[0] == '-' {
-		checked = checked[1:]
-	}
-	if errMsg := validatePositiveFloat(checked); errMsg != "" {
-		iter.ReportError("ReadNumberAsSlice", errMsg)
-		return nil
-	}
-
-	return buf
+	return iter.readNumberAsBytes(buf)
 }
