@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/big"
 	"strconv"
+	"unsafe"
 )
 
 var floatDigits []int8
@@ -63,96 +64,6 @@ func (iter *Iterator) ReadBigInt() (ret *big.Int) {
 		return nil
 	}
 	return ret
-}
-
-//ReadFloat32 read float32
-func (iter *Iterator) ReadFloat32() (ret float32) {
-	c := iter.nextToken()
-	if c == '-' {
-		return -iter.readPositiveFloat32()
-	}
-	iter.unreadByte()
-	return iter.readPositiveFloat32()
-}
-
-func (iter *Iterator) readPositiveFloat32() (ret float32) {
-	i := iter.head
-	// first char
-	if i == iter.tail {
-		return iter.readFloat32SlowPath()
-	}
-	c := iter.buf[i]
-	i++
-	ind := floatDigits[c]
-	switch ind {
-	case invalidCharForNumber:
-		return iter.readFloat32SlowPath()
-	case endOfNumber:
-		iter.ReportError("readFloat32", "empty number")
-		return
-	case dotInNumber:
-		iter.ReportError("readFloat32", "leading dot is invalid")
-		return
-	case 0:
-		if i == iter.tail {
-			return iter.readFloat32SlowPath()
-		}
-		c = iter.buf[i]
-		switch c {
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			iter.ReportError("readFloat32", "leading zero is invalid")
-			return
-		}
-	}
-	value := uint64(ind)
-	// chars before dot
-non_decimal_loop:
-	for ; i < iter.tail; i++ {
-		c = iter.buf[i]
-		ind := floatDigits[c]
-		switch ind {
-		case invalidCharForNumber:
-			return iter.readFloat32SlowPath()
-		case endOfNumber:
-			iter.head = i
-			return float32(value)
-		case dotInNumber:
-			break non_decimal_loop
-		}
-		if value > uint64SafeToMultiple10 {
-			return iter.readFloat32SlowPath()
-		}
-		value = (value << 3) + (value << 1) + uint64(ind) // value = value * 10 + ind;
-	}
-	// chars after dot
-	if c == '.' {
-		i++
-		decimalPlaces := 0
-		if i == iter.tail {
-			return iter.readFloat32SlowPath()
-		}
-		for ; i < iter.tail; i++ {
-			c = iter.buf[i]
-			ind := floatDigits[c]
-			switch ind {
-			case endOfNumber:
-				if decimalPlaces > 0 && decimalPlaces < len(pow10) {
-					iter.head = i
-					return float32(float64(value) / float64(pow10[decimalPlaces]))
-				}
-				// too many decimal places
-				return iter.readFloat32SlowPath()
-			case invalidCharForNumber, dotInNumber:
-				return iter.readFloat32SlowPath()
-			}
-			decimalPlaces++
-			if value > uint64SafeToMultiple10 {
-				return iter.readFloat32SlowPath()
-			}
-			value = (value << 3) + (value << 1) + uint64(ind)
-		}
-	}
-	return iter.readFloat32SlowPath()
 }
 
 const (
@@ -317,125 +228,56 @@ func (iter *Iterator) readNumberAsString() (ret string) {
 	return string(res)
 }
 
-func (iter *Iterator) readFloat32SlowPath() (ret float32) {
+//go:nosplit
+//go:nocheckptr
+func noescape(p unsafe.Pointer) unsafe.Pointer {
+	x := uintptr(p)
+	return unsafe.Pointer(x ^ 0)
+}
+
+func parseFloatBytes(b []byte, bitSize int) (float64, error) {
+	s := *(*string)(noescape(unsafe.Pointer(&b)))
+
+	res, err := strconv.ParseFloat(s, bitSize)
+	if err != nil {
+		if nErr, ok := err.(*strconv.NumError); ok {
+			nErr.Num = string(b)
+			err = nErr
+		}
+	}
+	return res, err
+}
+
+//ReadFloat32 read float32
+func (iter *Iterator) ReadFloat32() (ret float32) {
 	buf := [24]byte{}
-	strBuf := iter.readNumberAsBytes(buf[:0])
+	numBuf := iter.readNumberAsBytes(buf[:0])
 	if iter.Error != nil && iter.Error != io.EOF {
 		return
 	}
-	val, err := strconv.ParseFloat(string(strBuf), 32)
+
+	res, err := parseFloatBytes(numBuf, 32)
 	if err != nil {
-		iter.Error = err
+		iter.ReportError("ReadFloat32", err.Error())
 		return
 	}
-	return float32(val)
+	return float32(res)
 }
 
 // ReadFloat64 read float64
 func (iter *Iterator) ReadFloat64() (ret float64) {
-	c := iter.nextToken()
-	if c == '-' {
-		return -iter.readPositiveFloat64()
-	}
-	iter.unreadByte()
-	return iter.readPositiveFloat64()
-}
-
-func (iter *Iterator) readPositiveFloat64() (ret float64) {
-	i := iter.head
-	// first char
-	if i == iter.tail {
-		return iter.readFloat64SlowPath()
-	}
-	c := iter.buf[i]
-	i++
-	ind := floatDigits[c]
-	switch ind {
-	case invalidCharForNumber:
-		return iter.readFloat64SlowPath()
-	case endOfNumber:
-		iter.ReportError("readFloat64", "empty number")
-		return
-	case dotInNumber:
-		iter.ReportError("readFloat64", "leading dot is invalid")
-		return
-	case 0:
-		if i == iter.tail {
-			return iter.readFloat64SlowPath()
-		}
-		c = iter.buf[i]
-		switch c {
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			iter.ReportError("readFloat64", "leading zero is invalid")
-			return
-		}
-	}
-	value := uint64(ind)
-	// chars before dot
-non_decimal_loop:
-	for ; i < iter.tail; i++ {
-		c = iter.buf[i]
-		ind := floatDigits[c]
-		switch ind {
-		case invalidCharForNumber:
-			return iter.readFloat64SlowPath()
-		case endOfNumber:
-			iter.head = i
-			return float64(value)
-		case dotInNumber:
-			break non_decimal_loop
-		}
-		if value > uint64SafeToMultiple10 {
-			return iter.readFloat64SlowPath()
-		}
-		value = (value << 3) + (value << 1) + uint64(ind) // value = value * 10 + ind;
-	}
-	// chars after dot
-	if c == '.' {
-		i++
-		decimalPlaces := 0
-		if i == iter.tail {
-			return iter.readFloat64SlowPath()
-		}
-		for ; i < iter.tail; i++ {
-			c = iter.buf[i]
-			ind := floatDigits[c]
-			switch ind {
-			case endOfNumber:
-				if decimalPlaces > 0 && decimalPlaces < len(pow10) {
-					iter.head = i
-					return float64(value) / float64(pow10[decimalPlaces])
-				}
-				// too many decimal places
-				return iter.readFloat64SlowPath()
-			case invalidCharForNumber, dotInNumber:
-				return iter.readFloat64SlowPath()
-			}
-			decimalPlaces++
-			if value > uint64SafeToMultiple10 {
-				return iter.readFloat64SlowPath()
-			}
-			value = (value << 3) + (value << 1) + uint64(ind)
-			if value > maxFloat64 {
-				return iter.readFloat64SlowPath()
-			}
-		}
-	}
-	return iter.readFloat64SlowPath()
-}
-
-func (iter *Iterator) readFloat64SlowPath() (ret float64) {
 	buf := [24]byte{}
-	strBuf := iter.readNumberAsBytes(buf[:0])
+	numBuf := iter.readNumberAsBytes(buf[:0])
 	if iter.Error != nil && iter.Error != io.EOF {
 		return
 	}
-	val, err := strconv.ParseFloat(string(strBuf), 64)
+
+	res, err := parseFloatBytes(numBuf, 64)
 	if err != nil {
-		iter.Error = err
+		iter.ReportError("ReadFloat64", err.Error())
 		return
 	}
-	return val
+	return res
 }
 
 // ReadNumber read json.Number
