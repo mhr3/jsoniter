@@ -75,6 +75,7 @@ const (
 	numberParseState5
 	numberParseState6
 	numberParseState7
+	numberParseState8
 	numberParseStateEnd
 	numberParseStateError
 )
@@ -173,13 +174,22 @@ load_loop:
 					state = numberParseState7
 					end++
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					state = numberParseState7
+					state = numberParseState8
 					end++
 				default:
 					state = numberParseStateError
 					break load_loop
 				}
 			case numberParseState7:
+				switch c {
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+					state = numberParseState8
+					end++
+				default:
+					state = numberParseStateError
+					break load_loop
+				}
+			case numberParseState8:
 				switch c {
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 					end++
@@ -200,7 +210,7 @@ load_loop:
 
 	// are we in an accepting state?
 	switch state {
-	case numberParseState2, numberParseState3, numberParseState5, numberParseState7:
+	case numberParseState2, numberParseState3, numberParseState5, numberParseState8:
 		// yep
 		buf = append(buf, iter.buf[iter.head:end]...)
 		iter.head = end
