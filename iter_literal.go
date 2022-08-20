@@ -1,6 +1,8 @@
 package jsoniter
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type jsonLiteral byte
 
@@ -16,16 +18,10 @@ var literalTable = [...]string{
 	nullLiteral:  "null",
 	trueLiteral:  "true",
 	falseLiteral: "false",
-}
 
-var literalTablePayloads = [...][8]byte{
-	nullLiteral:  {'n', 'u', 'l', 'l'},
-	trueLiteral:  {'t', 'r', 'u', 'e'},
-	falseLiteral: {'f', 'a', 'l', 's', 'e'},
-
-	nullLiteral + firstByteSkippedOffset:  {'u', 'l', 'l'},
-	trueLiteral + firstByteSkippedOffset:  {'r', 'u', 'e'},
-	falseLiteral + firstByteSkippedOffset: {'a', 'l', 's', 'e'},
+	nullLiteral + firstByteSkippedOffset:  "ull",
+	trueLiteral + firstByteSkippedOffset:  "rue",
+	falseLiteral + firstByteSkippedOffset: "alse",
 }
 
 func (lit jsonLiteral) String() string {
@@ -36,12 +32,13 @@ func (lit jsonLiteral) Len() int {
 	return len(literalTable[lit])
 }
 
-func (lit jsonLiteral) As8Bytes(headOffset int) [8]byte {
+func (lit jsonLiteral) EqualBytes(data []byte, headOffset int) bool {
 	var offset jsonLiteral
 	if headOffset > 0 {
 		offset = firstByteSkippedOffset
 	}
-	return literalTablePayloads[lit+offset]
+
+	return string(data) == literalTable[lit+offset]
 }
 
 // note that this function expects the head to be at the first byte of the literal
@@ -56,16 +53,12 @@ func (iter *Iterator) ensureLiteralFull(lit jsonLiteral) {
 func (iter *Iterator) skipLiteralBytes(lit jsonLiteral, litOffset int) {
 	comparerLen := lit.Len() - litOffset
 
-	if iter.tail-iter.head >= comparerLen {
-		// the compiler can do this without allocs
-		startIdx := iter.head
-		endIdx := startIdx + comparerLen
+	startIdx := iter.head
+	endIdx := startIdx + comparerLen
 
-		var buf [8]byte
-		copy(buf[:], iter.buf[startIdx:endIdx])
-
-		if buf == lit.As8Bytes(litOffset) {
-			//if string(iter.buf[startIdx:endIdx]) == comparer {
+	// quick check if we have enough data buffered
+	if iter.tail >= endIdx {
+		if lit.EqualBytes(iter.buf[startIdx:endIdx], litOffset) {
 			iter.head = endIdx
 			return
 		}
