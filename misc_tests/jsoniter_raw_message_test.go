@@ -2,10 +2,11 @@ package misc_tests
 
 import (
 	"encoding/json"
-	"github.com/json-iterator/go"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_jsoniter_RawMessage(t *testing.T) {
@@ -54,11 +55,9 @@ func Test_marshal_nil_json_raw_message(t *testing.T) {
 	should.Equal(`{"raw1":null,"raw2":null}`, string(aout))
 	should.Nil(aouterr)
 
-	a.Nil1 = []byte(`Any`)
-	a.Nil2 = []byte(`Any`)
 	should.Nil(jsoniter.Unmarshal(aout, &a))
-	should.Nil(a.Nil1)
-	should.Nil(a.Nil2)
+	should.Equal("null", string(a.Nil1))
+	should.Equal("null", string(a.Nil2))
 }
 
 func Test_raw_message_memory_not_copied_issue(t *testing.T) {

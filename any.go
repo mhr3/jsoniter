@@ -3,11 +3,12 @@ package jsoniter
 import (
 	"errors"
 	"fmt"
-	"github.com/modern-go/reflect2"
 	"io"
 	"reflect"
 	"strconv"
 	"unsafe"
+
+	"github.com/modern-go/reflect2"
 )
 
 // Any generic object representation.
@@ -169,19 +170,18 @@ func (iter *Iterator) readAny() Any {
 		return iter.readObjectAny()
 	case '[':
 		return iter.readArrayAny()
-	case '-':
-		return iter.readNumberAny(false)
+	case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		iter.unreadByte()
+		return iter.readNumberAny()
 	case 0:
 		return &invalidAny{baseAny{}, errors.New("input is empty")}
 	default:
-		return iter.readNumberAny(true)
+		return &invalidAny{baseAny{}, fmt.Errorf("unexpected token: %c", c)}
 	}
 }
 
-func (iter *Iterator) readNumberAny(positive bool) Any {
-	iter.startCapture(iter.head - 1)
-	iter.skipNumber()
-	lazyBuf := iter.stopCapture()
+func (iter *Iterator) readNumberAny() Any {
+	lazyBuf := iter.readNumberAsBytes(nil)
 	return &numberLazyAny{baseAny{}, iter.cfg, lazyBuf, nil}
 }
 

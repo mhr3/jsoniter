@@ -8,30 +8,6 @@ import (
 	"unsafe"
 )
 
-var floatDigits []int8
-
-const invalidCharForNumber = int8(-1)
-const endOfNumber = int8(-2)
-const dotInNumber = int8(-3)
-
-func init() {
-	floatDigits = make([]int8, 256)
-	for i := 0; i < len(floatDigits); i++ {
-		floatDigits[i] = invalidCharForNumber
-	}
-	for i := int8('0'); i <= int8('9'); i++ {
-		floatDigits[i] = i - int8('0')
-	}
-	floatDigits[','] = endOfNumber
-	floatDigits[']'] = endOfNumber
-	floatDigits['}'] = endOfNumber
-	floatDigits[' '] = endOfNumber
-	floatDigits['\t'] = endOfNumber
-	floatDigits['\r'] = endOfNumber
-	floatDigits['\n'] = endOfNumber
-	floatDigits['.'] = dotInNumber
-}
-
 // ReadBigFloat read big.Float
 func (iter *Iterator) ReadBigFloat() (ret *big.Float) {
 	str := iter.readNumberAsString()
@@ -67,22 +43,25 @@ func (iter *Iterator) ReadBigInt() (ret *big.Int) {
 }
 
 const (
-	numberParseState0 byte = iota
-	numberParseState1
-	numberParseState2
-	numberParseState3
-	numberParseState4
-	numberParseState5
-	numberParseState6
-	numberParseState7
-	numberParseState8
+	numberParseStateInitial byte = iota
+	numberParseStateNegative
+	numberParseStateZero   // terminal
+	numberParseStateDigits // terminal
+	numberParseStateFloat
+	numberParseStateFloatDigit // terminal
+	numberParseStateExponent
+	numberParseStateExponentDigit
+	numberParseStateExponentExtraDigits // terminal
 	numberParseStateEnd
 	numberParseStateError
 )
 
-func (iter *Iterator) readNumberAsBytes(buf []byte) []byte {
-	end := -1
-	state := numberParseState0
+func (iter *Iterator) readNumberRaw(copied []byte) RawString {
+	var (
+		state  = numberParseStateInitial
+		endIdx = 0
+	)
+
 load_loop:
 	for {
 		// eliminate bounds check
@@ -90,154 +69,155 @@ load_loop:
 			break
 		}
 
-		end = iter.head
 		for i := iter.head; i < iter.tail; i++ {
 			c := iter.buf[i]
 
 			switch state {
-			case numberParseState0:
+			case numberParseStateInitial:
 				switch c {
 				case '-':
-					state = numberParseState1
-					end++
+					state = numberParseStateNegative
 				case '0':
-					state = numberParseState2
-					end++
+					state = numberParseStateZero
 				case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					state = numberParseState3
-					end++
+					state = numberParseStateDigits
 				default:
 					state = numberParseStateError
 					break load_loop
 				}
-			case numberParseState1:
+			case numberParseStateNegative:
 				switch c {
 				case '0':
-					state = numberParseState2
-					end++
+					state = numberParseStateZero
 				case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					state = numberParseState3
-					end++
+					state = numberParseStateDigits
 				default:
 					state = numberParseStateError
 					break load_loop
 				}
-			case numberParseState2:
+			case numberParseStateZero:
 				switch c {
 				case '.':
-					state = numberParseState4
-					end++
+					state = numberParseStateFloat
 				case 'e', 'E':
-					state = numberParseState6
-					end++
+					state = numberParseStateExponent
 				default:
 					state = numberParseStateEnd
+					endIdx = i
 					break load_loop
 				}
-			case numberParseState3:
+			case numberParseStateDigits:
 				switch c {
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					end++
 				case '.':
-					state = numberParseState4
-					end++
+					state = numberParseStateFloat
 				case 'e', 'E':
-					state = numberParseState6
-					end++
+					state = numberParseStateExponent
 				default:
 					state = numberParseStateEnd
+					endIdx = i
 					break load_loop
 				}
-			case numberParseState4:
+			case numberParseStateFloat:
 				switch c {
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					state = numberParseState5
-					end++
+					state = numberParseStateFloatDigit
 				default:
 					state = numberParseStateError
 					break load_loop
 				}
-			case numberParseState5:
+			case numberParseStateFloatDigit:
 				switch c {
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					end++
 				case 'e', 'E':
-					state = numberParseState6
-					end++
+					state = numberParseStateExponent
 				default:
 					state = numberParseStateEnd
+					endIdx = i
 					break load_loop
 				}
-			case numberParseState6:
+			case numberParseStateExponent:
 				switch c {
 				case '+', '-':
-					state = numberParseState7
-					end++
+					state = numberParseStateExponentDigit
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					state = numberParseState8
-					end++
+					state = numberParseStateExponentExtraDigits
 				default:
 					state = numberParseStateError
 					break load_loop
 				}
-			case numberParseState7:
+			case numberParseStateExponentDigit:
 				switch c {
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					state = numberParseState8
-					end++
+					state = numberParseStateExponentExtraDigits
 				default:
 					state = numberParseStateError
 					break load_loop
 				}
-			case numberParseState8:
+			case numberParseStateExponentExtraDigits:
 				switch c {
 				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-					end++
 				default:
 					state = numberParseStateEnd
+					endIdx = i
 					break load_loop
 				}
 			}
 		}
-		buf = append(buf, iter.buf[iter.head:end]...)
+		copied = append(copied, iter.buf[iter.head:iter.tail]...)
 		if !iter.loadMore() {
+			// we just did the copy, so set end to head
+			endIdx = iter.head
 			break
 		}
 	}
 	if iter.Error != nil && iter.Error != io.EOF {
-		return nil
+		return RawString{}
 	}
 
 	// are we in an accepting state?
 	switch state {
-	case numberParseState2, numberParseState3, numberParseState5, numberParseState8:
+	case numberParseStateZero, numberParseStateDigits, numberParseStateFloatDigit, numberParseStateExponentExtraDigits:
 		// yep
-		buf = append(buf, iter.buf[iter.head:end]...)
-		iter.head = end
 	case numberParseStateEnd:
 		// we need to ensure the next character is something that terminates the number
-		if floatDigits[iter.buf[end]] != endOfNumber {
+		switch iter.buf[endIdx] {
+		case ' ', '\t', '\r', '\n', ',', '}', ']':
+			// all good
+		default:
 			iter.ReportError("readNumberAsBytes", "unexpected character after number")
-			return nil
+			return RawString{}
 		}
-		buf = append(buf, iter.buf[iter.head:end]...)
-		iter.head = end
 	default:
 		iter.ReportError("readNumberAsBytes", "invalid number")
-		return nil
+		return RawString{}
 	}
 
-	return buf
+	prevHead := iter.head
+	iter.head = endIdx
+
+	if len(copied) == 0 {
+		return RawString{isRaw: true, buf: iter.buf[prevHead:iter.head]}
+	}
+	copied = append(copied, iter.buf[prevHead:iter.head]...)
+	return RawString{buf: copied}
+}
+
+func (iter *Iterator) readNumberAsBytes(buf []byte) []byte {
+	rs := iter.readNumberRaw(buf)
+	if rs.isRaw {
+		return append(buf, rs.buf...)
+	}
+	return rs.buf
 }
 
 func (iter *Iterator) readNumberAsString() (ret string) {
-	// this will save one alloc in most cases
-	buf := [24]byte{}
-	res := iter.readNumberAsBytes(buf[:0])
-
-	return string(res)
+	rs := iter.readNumberRaw(nil)
+	return string(rs.buf)
 }
 
+// noescape hides a pointer from escape analysis. It is the identity function
+// but escape analysis doesn't think the output depends on the input.
 //go:nosplit
 //go:nocheckptr
 func noescape(p unsafe.Pointer) unsafe.Pointer {
@@ -251,6 +231,7 @@ func parseFloatBytes(b []byte, bitSize int) (float64, error) {
 	res, err := strconv.ParseFloat(s, bitSize)
 	if err != nil {
 		if nErr, ok := err.(*strconv.NumError); ok {
+			// the .Num points to an unsafe string, so we need to copy it
 			nErr.Num = string(b)
 			err = nErr
 		}
@@ -260,13 +241,12 @@ func parseFloatBytes(b []byte, bitSize int) (float64, error) {
 
 //ReadFloat32 read float32
 func (iter *Iterator) ReadFloat32() (ret float32) {
-	buf := [24]byte{}
-	numBuf := iter.readNumberAsBytes(buf[:0])
+	rs := iter.readNumberRaw(nil)
 	if iter.Error != nil && iter.Error != io.EOF {
 		return
 	}
 
-	res, err := parseFloatBytes(numBuf, 32)
+	res, err := parseFloatBytes(rs.buf, 32)
 	if err != nil {
 		iter.ReportError("ReadFloat32", err.Error())
 		return
@@ -276,13 +256,12 @@ func (iter *Iterator) ReadFloat32() (ret float32) {
 
 // ReadFloat64 read float64
 func (iter *Iterator) ReadFloat64() (ret float64) {
-	buf := [24]byte{}
-	numBuf := iter.readNumberAsBytes(buf[:0])
+	rs := iter.readNumberRaw(nil)
 	if iter.Error != nil && iter.Error != io.EOF {
 		return
 	}
 
-	res, err := parseFloatBytes(numBuf, 64)
+	res, err := parseFloatBytes(rs.buf, 64)
 	if err != nil {
 		iter.ReportError("ReadFloat64", err.Error())
 		return

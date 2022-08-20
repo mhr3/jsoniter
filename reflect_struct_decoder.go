@@ -1086,13 +1086,19 @@ func (decoder *stringModeNumberDecoder) Decode(ptr unsafe.Pointer, iter *Iterato
 		iter.ReportError("stringModeNumberDecoder", `expect ", but found `+string([]byte{c}))
 		return
 	}
-	decoder.elemDecoder.Decode(ptr, iter)
+	raw := iter.readRawStringInner()
 	if iter.Error != nil {
 		return
 	}
-	c = iter.readByte()
-	if c != '"' {
-		iter.ReportError("stringModeNumberDecoder", `expect ", but found `+string([]byte{c}))
+	numData, _ := raw.Bytes()
+
+	innerIter := &Iterator{
+		buf:  numData,
+		tail: len(numData),
+	}
+
+	decoder.elemDecoder.Decode(ptr, innerIter)
+	if innerIter.Error != nil {
 		return
 	}
 }

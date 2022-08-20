@@ -35,7 +35,7 @@ type jsonRawMessageCodec struct {
 
 func (codec *jsonRawMessageCodec) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	if iter.ReadNil() {
-		*((*json.RawMessage)(ptr)) = nil
+		*((*json.RawMessage)(ptr)) = []byte("null")
 	} else {
 		*((*json.RawMessage)(ptr)) = iter.SkipAndReturnBytes()
 	}

@@ -4,8 +4,7 @@
 package jsoniter
 
 func (iter *Iterator) skipNumber() {
-	var buf [32]byte
-	iter.readNumberAsBytes(buf[:0])
+	iter.readNumberRaw(nil)
 }
 
 func (iter *Iterator) skipString() {

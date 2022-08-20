@@ -2,11 +2,20 @@ package jsoniter
 
 import (
 	"bytes"
+	"errors"
 	"io"
 )
 
 // RawMessage to make replace json with jsoniter
 type RawMessage []byte
+
+func (m *RawMessage) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return errors.New("jsoniter.RawMessage: UnmarshalJSON on nil pointer")
+	}
+	*m = append((*m)[0:0], data...)
+	return nil
+}
 
 // Unmarshal adapts to json/encoding Unmarshal API
 //

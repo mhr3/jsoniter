@@ -147,7 +147,7 @@ func BenchmarkNumberAllocs(b *testing.B) {
 				}
 			case float32:
 				buf := iter.ReadNumberAsSlice(scratch[:0])
-				if res, _ := strconv.ParseFloat(string(buf), 64); float32(res) != val {
+				if res, _ := strconv.ParseFloat(string(buf), 32); float32(res) != val {
 					b.Fatal("mismatch @", val, "!=", res)
 				}
 			}

@@ -3,7 +3,7 @@ package any_tests
 import (
 	"testing"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,12 +69,12 @@ func Test_read_any_to_float(t *testing.T) {
 	should := require.New(t)
 	for k, v := range floatConvertMap {
 		any := jsoniter.Get([]byte(k))
-		should.Equal(float64(v), any.ToFloat64(), "the original val is "+k)
+		should.Equal(float64(v), any.ToFloat64(), "the original val is %s", k)
 	}
 
 	for k, v := range floatConvertMap {
 		any := jsoniter.Get([]byte(k))
-		should.Equal(float32(v), any.ToFloat32(), "the original val is "+k)
+		should.Equal(float32(v), any.ToFloat32(), "the original val is %s", k)
 	}
 }
 
