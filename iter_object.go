@@ -22,7 +22,7 @@ func (iter *Iterator) ReadObjectRaw() RawString {
 	c := iter.nextToken()
 	switch c {
 	case 'n':
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		return RawString{} // null
 	case '{':
 		c = iter.nextToken()
@@ -182,7 +182,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 		return false
 	}
 	if c == 'n' {
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		return true // null
 	}
 	iter.ReportError("ReadObjectCB", `expect { or n, but found `+string([]byte{c}))
@@ -204,7 +204,7 @@ func (iter *Iterator) readObjectStart() bool {
 		iter.unreadByte()
 		return true
 	} else if c == 'n' {
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		return false
 	}
 	iter.ReportError("readObjectStart", "expect { or n, but found "+string([]byte{c}))

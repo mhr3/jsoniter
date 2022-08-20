@@ -2,11 +2,12 @@ package jsoniter
 
 import (
 	"fmt"
-	"github.com/modern-go/reflect2"
 	"io"
 	"reflect"
 	"sort"
 	"unsafe"
+
+	"github.com/modern-go/reflect2"
 )
 
 func decoderOfMap(ctx *ctx, typ reflect2.Type) ValDecoder {
@@ -151,7 +152,7 @@ func (decoder *mapDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	mapType := decoder.mapType
 	c := iter.nextToken()
 	if c == 'n' {
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		*(*unsafe.Pointer)(ptr) = nil
 		mapType.UnsafeSet(ptr, mapType.UnsafeNew())
 		return

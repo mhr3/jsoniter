@@ -138,7 +138,7 @@ func Wrap(val interface{}) Any {
 	case reflect.Float64:
 		return WrapFloat64(val.(float64))
 	case reflect.Bool:
-		if val.(bool) == true {
+		if val.(bool) {
 			return &trueAny{}
 		}
 		return &falseAny{}
@@ -155,16 +155,15 @@ func (iter *Iterator) readAny() Any {
 	c := iter.nextToken()
 	switch c {
 	case '"':
-		iter.unreadByte()
-		return &stringAny{baseAny{}, iter.ReadString()}
+		return &stringAny{baseAny{}, iter.readStringInner()}
 	case 'n':
-		iter.skipThreeBytes('u', 'l', 'l') // null
+		iter.ensureLiteral(nullLiteral)
 		return &nilAny{}
 	case 't':
-		iter.skipThreeBytes('r', 'u', 'e') // true
+		iter.ensureLiteral(trueLiteral)
 		return &trueAny{}
 	case 'f':
-		iter.skipFourBytes('a', 'l', 's', 'e') // false
+		iter.ensureLiteral(falseLiteral)
 		return &falseAny{}
 	case '{':
 		return iter.readObjectAny()

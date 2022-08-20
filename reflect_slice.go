@@ -2,9 +2,10 @@ package jsoniter
 
 import (
 	"fmt"
-	"github.com/modern-go/reflect2"
 	"io"
 	"unsafe"
+
+	"github.com/modern-go/reflect2"
 )
 
 func decoderOfSlice(ctx *ctx, typ reflect2.Type) ValDecoder {
@@ -67,7 +68,7 @@ func (decoder *sliceDecoder) doDecode(ptr unsafe.Pointer, iter *Iterator) {
 	c := iter.nextToken()
 	sliceType := decoder.sliceType
 	if c == 'n' {
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		sliceType.UnsafeSetNil(ptr)
 		return
 	}

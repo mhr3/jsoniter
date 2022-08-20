@@ -286,7 +286,6 @@ func (iter *Iterator) unreadByte() {
 		return
 	}
 	iter.head--
-	return
 }
 
 // Read read the next JSON element as generic interface{}.
@@ -301,7 +300,7 @@ func (iter *Iterator) Read() interface{} {
 		}
 		return iter.ReadFloat64()
 	case NilValue:
-		iter.skipFourBytes('n', 'u', 'l', 'l')
+		iter.ensureLiteralFull(nullLiteral)
 		return nil
 	case BoolValue:
 		return iter.ReadBool()

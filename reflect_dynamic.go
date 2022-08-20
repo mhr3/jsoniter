@@ -1,9 +1,10 @@
 package jsoniter
 
 import (
-	"github.com/modern-go/reflect2"
 	"reflect"
 	"unsafe"
+
+	"github.com/modern-go/reflect2"
 )
 
 type dynamicEncoder struct {
@@ -38,7 +39,7 @@ func (decoder *efaceDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	ptrElemType := ptrType.Elem()
 	if iter.WhatIsNext() == NilValue {
 		if ptrElemType.Kind() != reflect.Ptr {
-			iter.skipFourBytes('n', 'u', 'l', 'l')
+			iter.ensureLiteralFull(nullLiteral)
 			*pObj = nil
 			return
 		}

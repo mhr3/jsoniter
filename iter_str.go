@@ -13,7 +13,7 @@ func (iter *Iterator) ReadString() string {
 	switch c {
 	case '"':
 	case 'n':
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		return ""
 	default:
 		iter.ReportError("ReadString", `expects " or n, but found `+string([]byte{c}))
@@ -86,7 +86,7 @@ func (iter *Iterator) ReadRawString() RawString {
 	switch c {
 	case '"':
 	case 'n':
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		return RawString{}
 	default:
 		iter.ReportError("ReadRawString", `expects " or n, but found `+string([]byte{c}))

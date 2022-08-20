@@ -5,7 +5,7 @@ func (iter *Iterator) ReadArray() (ret bool) {
 	c := iter.nextToken()
 	switch c {
 	case 'n':
-		iter.skipThreeBytes('u', 'l', 'l')
+		iter.ensureLiteral(nullLiteral)
 		return false // null
 	case '[':
 		c = iter.nextToken()
@@ -25,40 +25,42 @@ func (iter *Iterator) ReadArray() (ret bool) {
 }
 
 // ReadArrayCB read array with callback
-func (iter *Iterator) ReadArrayCB(callback func(*Iterator) bool) (ret bool) {
+func (iter *Iterator) ReadArrayCB(callback func(*Iterator) bool) {
 	c := iter.nextToken()
 	if c == '[' {
 		if !iter.incrementDepth() {
-			return false
+			return
 		}
 		c = iter.nextToken()
 		if c != ']' {
 			iter.unreadByte()
 			if !callback(iter) {
 				iter.decrementDepth()
-				return false
+				return
 			}
 			c = iter.nextToken()
 			for c == ',' {
 				if !callback(iter) {
 					iter.decrementDepth()
-					return false
+					return
 				}
 				c = iter.nextToken()
 			}
 			if c != ']' {
 				iter.ReportError("ReadArrayCB", "expect ] in the end, but found "+string([]byte{c}))
 				iter.decrementDepth()
-				return false
+				return
 			}
-			return iter.decrementDepth()
+			iter.decrementDepth()
+			return
 		}
-		return iter.decrementDepth()
+		iter.decrementDepth()
+		return
 	}
 	if c == 'n' {
-		iter.skipThreeBytes('u', 'l', 'l')
-		return true // null
+		iter.ensureLiteral(nullLiteral)
+		return
 	}
+
 	iter.ReportError("ReadArrayCB", "expect [ or n, but found "+string([]byte{c}))
-	return false
 }

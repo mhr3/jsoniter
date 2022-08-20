@@ -64,7 +64,7 @@ func (codec *jsonNumberCodec) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	case StringValue:
 		*((*json.Number)(ptr)) = json.Number(iter.ReadString())
 	case NilValue:
-		iter.skipFourBytes('n', 'u', 'l', 'l')
+		iter.ensureLiteralFull(nullLiteral)
 		*((*json.Number)(ptr)) = ""
 	default:
 		*((*json.Number)(ptr)) = json.Number(iter.readNumberAsString())
@@ -92,7 +92,7 @@ func (codec *jsoniterNumberCodec) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	case StringValue:
 		*((*Number)(ptr)) = Number(iter.ReadString())
 	case NilValue:
-		iter.skipFourBytes('n', 'u', 'l', 'l')
+		iter.ensureLiteralFull(nullLiteral)
 		*((*Number)(ptr)) = ""
 	default:
 		*((*Number)(ptr)) = Number(iter.readNumberAsString())
