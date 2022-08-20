@@ -2,8 +2,9 @@ package jsoniter
 
 import (
 	"encoding/json"
-	"github.com/modern-go/reflect2"
 	"unsafe"
+
+	"github.com/modern-go/reflect2"
 )
 
 var jsonRawMessageType = reflect2.TypeOfPtr((*json.RawMessage)(nil)).Elem()
@@ -57,7 +58,7 @@ type jsoniterRawMessageCodec struct {
 
 func (codec *jsoniterRawMessageCodec) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	if iter.ReadNil() {
-		*((*RawMessage)(ptr)) = nil
+		*((*RawMessage)(ptr)) = []byte("null")
 	} else {
 		*((*RawMessage)(ptr)) = iter.SkipAndReturnBytes()
 	}

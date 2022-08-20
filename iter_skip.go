@@ -2,6 +2,7 @@ package jsoniter
 
 import (
 	"fmt"
+	"io"
 )
 
 // ReadNil reads a json object as nil and
@@ -35,7 +36,13 @@ func (iter *Iterator) ReadBool() (ret bool) {
 // The []byte can be kept, it is a copy of data.
 func (iter *Iterator) SkipAndReturnBytes() []byte {
 	iter.startCapture(iter.head)
+
 	iter.Skip()
+	if iter.Error != nil && iter.Error != io.EOF {
+		iter.discardCapture()
+		return nil
+	}
+
 	return iter.stopCapture()
 }
 
@@ -68,6 +75,10 @@ func (iter *Iterator) stopCapture() []byte {
 	iter.captureStartedAt = -1
 	iter.captured = nil
 	return append(captured, remaining...)
+}
+
+func (iter *Iterator) discardCapture() {
+	iter.captured = nil
 }
 
 // Skip skips a json object and positions to relatively the next json object
