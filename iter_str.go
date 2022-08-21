@@ -69,10 +69,9 @@ outerLoop:
 		iter.head = iter.tail
 
 		// load next chunk
-		if iter.readByte() == 0 {
+		if !iter.loadMore() {
 			break
 		}
-		iter.unreadByte()
 	}
 
 	iter.ReportError("ReadString", "unexpected end of input")
@@ -130,7 +129,7 @@ outerLoop:
 				return RawString{buf: copied.Bytes(), hasEscapes: hasEscapes}
 			case c == '\\':
 				// toggle readingEscape
-				readingEscape = readingEscape != true
+				readingEscape = !readingEscape
 				hasEscapes = true
 				continue
 			case c < ' ':
@@ -152,8 +151,7 @@ outerLoop:
 				// are we about to change iter.buf?
 				if i+4 >= iter.tail {
 					copied.Write(iter.buf[prevHead:iter.head])
-					var buf [4]byte
-					iter.readAndFillU4(buf[:])
+					buf := iter.storeU4()
 					copied.Write(buf[:])
 					continue outerLoop
 				}
@@ -179,10 +177,9 @@ outerLoop:
 		iter.head = iter.tail
 
 		// load next chunk
-		if iter.readByte() == 0 {
+		if !iter.loadMore() {
 			break
 		}
-		iter.unreadByte()
 	}
 
 	iter.ReportError("ReadRawString", "unexpected end of input")
@@ -316,11 +313,7 @@ func (iter *Iterator) readU4() (ret rune) {
 	return ret
 }
 
-func (iter *Iterator) readAndFillU4(buf []byte) (ret rune) {
-	if len(buf) < 4 {
-		panic("buffer too small")
-	}
-
+func (iter *Iterator) storeU4() (buf [4]byte) {
 	for i := 0; i < 4; i++ {
 		c := iter.readByte()
 		if iter.Error != nil {
@@ -329,22 +322,19 @@ func (iter *Iterator) readAndFillU4(buf []byte) (ret rune) {
 		buf[i] = c
 		c -= '0'
 		if c <= 9 {
-			ret = ret*16 + rune(c)
 			continue
 		}
 		c -= 'A' - '0'
 		if c <= 5 {
-			ret = ret*16 + rune(c+10)
 			continue
 		}
 		c -= 'a' - 'A'
 		if c <= 5 {
-			ret = ret*16 + rune(c+10)
 			continue
 		}
 
 		iter.ReportError("readU4", "invalid hex char")
 		return
 	}
-	return ret
+	return buf
 }
