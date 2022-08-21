@@ -325,12 +325,9 @@ func (cfg *frozenConfig) UnmarshalFromString(str string, v interface{}) error {
 	iter := cfg.BorrowIterator(data)
 	defer cfg.ReturnIterator(iter)
 	iter.ReadVal(v)
-	c := iter.nextToken()
-	if c == 0 {
-		if iter.Error == io.EOF {
-			return nil
-		}
-		return iter.Error
+
+	if iter.isStreamEnd() {
+		return nil
 	}
 	iter.ReportError("Unmarshal", "there are bytes left after unmarshal")
 	return iter.Error
@@ -347,11 +344,8 @@ func (cfg *frozenConfig) Unmarshal(data []byte, v interface{}) error {
 	defer cfg.ReturnIterator(iter)
 	iter.ReadVal(v)
 
-	if _, ok := iter.nextTokenChecked(); !ok {
-		if iter.Error == io.EOF {
-			return nil
-		}
-		return iter.Error
+	if iter.isStreamEnd() {
+		return nil
 	}
 	iter.ReportError("Unmarshal", "there are bytes left after unmarshal")
 	return iter.Error

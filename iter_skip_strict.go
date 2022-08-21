@@ -4,21 +4,25 @@
 package jsoniter
 
 func (iter *Iterator) skipNumber() {
+	iter.unreadByte()
 	iter.readNumberRaw(nil)
 }
 
 func (iter *Iterator) skipString() {
-	for i := iter.head; i < iter.tail; i++ {
-		c := iter.buf[i]
-		if c == '"' {
-			iter.head = i + 1
-			return // skipped the entire string
-		} else if c == '\\' {
-			iter.head = i
-			break
-		} else if c < ' ' {
-			iter.head = i
-			break
+	// eliminate bounds check inside the loop
+	if iter.head >= 0 && iter.tail <= len(iter.buf) {
+		for i := iter.head; i < iter.tail; i++ {
+			c := iter.buf[i]
+			if c == '"' {
+				iter.head = i + 1
+				return // skipped the entire string
+			} else if c == '\\' {
+				iter.head = i
+				break
+			} else if c < ' ' {
+				iter.head = i
+				break
+			}
 		}
 	}
 

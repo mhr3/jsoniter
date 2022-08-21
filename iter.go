@@ -148,6 +148,11 @@ func (iter *Iterator) InputOffset() int64 {
 }
 
 func (iter *Iterator) isNextTokenBuffered() bool {
+	// eliminate bounds check
+	if iter.head < 0 || iter.tail > len(iter.buf) {
+		return false
+	}
+
 	for i := iter.head; i < iter.tail; i++ {
 		c := iter.buf[i]
 		// skip whitespaces
@@ -164,14 +169,18 @@ func (iter *Iterator) isNextTokenBuffered() bool {
 func (iter *Iterator) nextToken() byte {
 	// a variation of skip whitespaces, returning the next non-whitespace token
 	for {
-		for i := iter.head; i < iter.tail; i++ {
-			c := iter.buf[i]
-			switch c {
-			case ' ', '\n', '\t', '\r':
-				continue
+		// eliminate bounds check
+		if iter.head >= 0 && iter.tail <= len(iter.buf) {
+			for i := iter.head; i < iter.tail; i++ {
+				c := iter.buf[i]
+				// skip whitespaces
+				switch c {
+				case ' ', '\n', '\t', '\r':
+					continue
+				}
+				iter.head = i + 1
+				return c
 			}
-			iter.head = i + 1
-			return c
 		}
 		if !iter.loadMore() {
 			return 0
@@ -179,20 +188,24 @@ func (iter *Iterator) nextToken() byte {
 	}
 }
 
-func (iter *Iterator) nextTokenChecked() (byte, bool) {
-	// a variation of skip whitespaces, returning the next non-whitespace token
+func (iter *Iterator) isStreamEnd() bool {
+	// checks if the end of input is reached, skipping any whitespace
 	for {
-		for i := iter.head; i < iter.tail; i++ {
-			c := iter.buf[i]
-			switch c {
-			case ' ', '\n', '\t', '\r':
-				continue
+		// eliminate bounds check
+		if iter.head >= 0 && iter.tail <= len(iter.buf) {
+			for i := iter.head; i < iter.tail; i++ {
+				c := iter.buf[i]
+				// skip whitespaces
+				switch c {
+				case ' ', '\n', '\t', '\r':
+					continue
+				}
+				iter.head = i + 1
+				return false
 			}
-			iter.head = i + 1
-			return c, true
 		}
 		if !iter.loadMore() {
-			return 0, false
+			return iter.Error == io.EOF
 		}
 	}
 }
