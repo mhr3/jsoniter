@@ -102,6 +102,8 @@ func (iter *Iterator) readRawStringInner() RawString {
 		hasEscapes    bool
 	)
 
+	copyStart := iter.head
+
 outerLoop:
 	for iter.Error == nil {
 		// eliminate bounds check inside the loop
@@ -119,13 +121,11 @@ outerLoop:
 				// careful, we're copying the ending double quote into the buffer
 				if copied.Len() == 0 {
 					// super fast path
-					prevHead := iter.head
 					iter.head = i + 1
-					return RawString{buf: iter.buf[prevHead:iter.head], isRaw: true, hasEscapes: hasEscapes}
+					return RawString{buf: iter.buf[copyStart:iter.head], isRaw: true, hasEscapes: hasEscapes}
 				}
-				prevHead := iter.head
 				iter.head = i + 1
-				copied.Write(iter.buf[prevHead:iter.head])
+				copied.Write(iter.buf[copyStart:iter.head])
 				return RawString{buf: copied.Bytes(), hasEscapes: hasEscapes}
 			case c == '\\':
 				// toggle readingEscape
@@ -146,25 +146,28 @@ outerLoop:
 			switch c {
 			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
 			case 'u':
-				prevHead := iter.head
 				iter.head = i + 1
 				// are we about to change iter.buf?
 				if i+4 >= iter.tail {
-					copied.Write(iter.buf[prevHead:iter.head])
+					copied.Write(iter.buf[copyStart:iter.head])
 					buf := iter.storeU4()
 					copied.Write(buf[:])
+					copyStart = iter.head
 					continue outerLoop
 				}
 
-				if iter.parseU4() == -1 {
+				var u4 [4]byte
+				copy(u4[:], iter.buf[i+1:i+5])
+
+				if parseU4(u4) == -1 {
 					iter.ReportError("ReadRawString", "invalid unicode escape sequence")
 					return RawString{}
 				}
+				iter.head += 4
 				// it shouldn't be necessary to break out of the loop, but
 				// for some reason the compiler doesn't like this branch
 				// and inserts slice bounds check around the iter.buf[i] read
 				// without the "continue outerLoop"
-				copied.Write(iter.buf[prevHead:iter.head])
 				continue outerLoop
 			default:
 				iter.ReportError("ReadRawString", `invalid escape char after \`)
@@ -173,13 +176,14 @@ outerLoop:
 		}
 
 		// copy buffer and load more
-		copied.Write(iter.buf[iter.head:iter.tail])
+		copied.Write(iter.buf[copyStart:iter.tail])
 		iter.head = iter.tail
 
 		// load next chunk
 		if !iter.loadMore() {
 			break
 		}
+		copyStart = iter.head
 	}
 
 	iter.ReportError("ReadRawString", "unexpected end of input")
@@ -246,70 +250,66 @@ start:
 	}
 }
 
-func (iter *Iterator) parseU4() (ret rune) {
-	// eliminate bounds check inside the loop
-	end := iter.head + 4
-	if iter.head < 0 || end > len(iter.buf) {
-		return -1
+func fromHexChar(c byte) (byte, bool) {
+	c -= '0'
+	if c <= 9 {
+		return c, true
+	}
+	c -= 'A' - '0'
+	if c <= 5 {
+		return c + 10, true
+	}
+	c -= 'a' - 'A'
+	if c <= 5 {
+		return c + 10, true
 	}
 
-	for i := iter.head; i < end; i++ {
-		c := iter.buf[i]
-		c -= '0'
-		if c <= 9 {
-			ret = ret*16 + rune(c)
-			continue
-		}
-		c -= 'A' - '0'
-		if c <= 5 {
-			ret = ret*16 + rune(c+10)
-			continue
-		}
-		c -= 'a' - 'A'
-		if c <= 5 {
-			ret = ret*16 + rune(c+10)
-			continue
-		}
-
-		return -1
-	}
-	iter.head = end
-	return ret
+	return 0, false
 }
 
-func (iter *Iterator) readU4() (ret rune) {
-	if iter.tail-iter.head >= 4 {
-		if ret = iter.parseU4(); ret < 0 {
-			iter.ReportError("readU4", "invalid hex char")
-			return 0
-		}
-		return ret
+func parseU4(buf [4]byte) rune {
+	allOk := true
+
+	a, ok := fromHexChar(buf[0])
+	allOk = allOk && ok
+
+	b, ok := fromHexChar(buf[1])
+	allOk = allOk && ok
+	ret := rune(a<<4 | b)
+
+	a, ok = fromHexChar(buf[2])
+	allOk = allOk && ok
+
+	b, ok = fromHexChar(buf[3])
+	allOk = allOk && ok
+
+	if !allOk {
+		return -1
 	}
 
-	for i := 0; i < 4; i++ {
-		c := iter.readByte()
-		if iter.Error != nil {
-			return
-		}
-		c -= '0'
-		if c <= 9 {
-			ret = ret*16 + rune(c)
-			continue
-		}
-		c -= 'A' - '0'
-		if c <= 5 {
-			ret = ret*16 + rune(c+10)
-			continue
-		}
-		c -= 'a' - 'A'
-		if c <= 5 {
-			ret = ret*16 + rune(c+10)
-			continue
-		}
+	return ret<<8 | rune(a<<4|b)
+}
 
+func (iter *Iterator) readU4() rune {
+	var u4 [4]byte
+
+	startIdx := iter.head
+	end := startIdx + 4
+
+	if startIdx < 0 || end > len(iter.buf) || end < startIdx {
+		u4 = iter.storeU4()
+	} else {
+		copy(u4[:], iter.buf[startIdx:end])
+
+		iter.head += 4
+	}
+
+	ret := parseU4(u4)
+	if ret < 0 {
 		iter.ReportError("readU4", "invalid hex char")
-		return
+		return 0
 	}
+
 	return ret
 }
 
