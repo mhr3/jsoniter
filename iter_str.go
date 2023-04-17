@@ -16,7 +16,7 @@ func (iter *Iterator) ReadString() string {
 		iter.ensureLiteral(nullLiteral)
 		return ""
 	default:
-		iter.ReportError("ReadString", `expects " or n, but found `+string([]byte{c}))
+		iter.ReportError("ReadString", `expects " or n, but found `+string(c))
 		return ""
 	}
 
@@ -88,7 +88,7 @@ func (iter *Iterator) ReadRawString() RawString {
 		iter.ensureLiteral(nullLiteral)
 		return RawString{}
 	default:
-		iter.ReportError("ReadRawString", `expects " or n, but found `+string([]byte{c}))
+		iter.ReportError("ReadRawString", `expects " or n, but found `+string(c))
 		return RawString{}
 	}
 

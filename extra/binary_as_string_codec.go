@@ -177,7 +177,7 @@ func readHex(iter *jsoniter.Iterator, b1, b2 byte) byte {
 	} else if b1 >= 'a' && b1 <= 'f' {
 		ret = b1 - 'a' + 10
 	} else {
-		iter.ReportError("read hex", "expects 0~9 or a~f, but found "+string([]byte{b1}))
+		iter.ReportError("read hex", "expects 0~9 or a~f, but found "+string(b1))
 		return 0
 	}
 	ret *= 16
@@ -186,7 +186,7 @@ func readHex(iter *jsoniter.Iterator, b1, b2 byte) byte {
 	} else if b2 >= 'a' && b2 <= 'f' {
 		ret += b2 - 'a' + 10
 	} else {
-		iter.ReportError("read hex", "expects 0~9 or a~f, but found "+string([]byte{b2}))
+		iter.ReportError("read hex", "expects 0~9 or a~f, but found "+string(b2))
 		return 0
 	}
 	return ret

@@ -126,7 +126,7 @@ func (iter *Iterator) readUint32(c byte) (ret uint32) {
 		return 0 // single zero
 	}
 	if ind == invalidCharForNumber {
-		iter.ReportError("readUint32", "unexpected character: "+string([]byte{byte(ind)}))
+		iter.ReportError("readUint32", "unexpected character: "+string(byte(ind)))
 		return
 	}
 	value := uint32(ind)
@@ -248,7 +248,7 @@ func (iter *Iterator) readUint64(c byte) (ret uint64) {
 		return 0 // single zero
 	}
 	if ind == invalidCharForNumber {
-		iter.ReportError("readUint64", "unexpected character: "+string([]byte{byte(ind)}))
+		iter.ReportError("readUint64", "unexpected character: "+string(byte(ind)))
 		return
 	}
 	value := uint64(ind)

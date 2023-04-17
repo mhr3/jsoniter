@@ -59,6 +59,17 @@ func TestParseNumber(t *testing.T) {
 	}
 }
 
+func TestFailingParseFloat(t *testing.T) {
+	buf := []byte(`{"num":1.797e+308987654321}`)
+	iter := ParseBytes(ConfigDefault, buf)
+	field, ok := iter.ReadObject()
+	require.True(t, ok)
+	require.Equal(t, "num", field)
+
+	_ = iter.ReadFloat64()
+	require.Error(t, iter.Error)
+}
+
 func BenchmarkAllocs(b *testing.B) {
 	type tcPair struct {
 		Value interface{}

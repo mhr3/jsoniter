@@ -77,7 +77,7 @@ func (decoder *arrayDecoder) doDecode(ptr unsafe.Pointer, iter *Iterator) {
 		return
 	}
 	if c != '[' {
-		iter.ReportError("decode array", "expect [ or n, but found "+string([]byte{c}))
+		iter.ReportError("decode array", "expect [ or n, but found "+string(c))
 		return
 	}
 	c = iter.nextToken()
@@ -99,7 +99,7 @@ func (decoder *arrayDecoder) doDecode(ptr unsafe.Pointer, iter *Iterator) {
 		decoder.elemDecoder.Decode(elemPtr, iter)
 	}
 	if c != ']' {
-		iter.ReportError("decode array", "expect ], but found "+string([]byte{c}))
+		iter.ReportError("decode array", "expect ], but found "+string(c))
 		return
 	}
 }

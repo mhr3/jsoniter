@@ -33,14 +33,14 @@ func (iter *Iterator) ReadObjectRaw() RawString {
 			}
 			c = iter.nextToken()
 			if c != ':' {
-				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+				iter.ReportError("ReadObject", "expect : after object field, but found "+string(c))
 			}
 			return rs
 		}
 		if c == '}' {
 			return RawString{} // end of object
 		}
-		iter.ReportError("ReadObject", `expect " after {, but found `+string([]byte{c}))
+		iter.ReportError("ReadObject", `expect " after {, but found `+string(c))
 		return RawString{}
 	case ',':
 		rs := iter.ReadRawString()
@@ -49,13 +49,13 @@ func (iter *Iterator) ReadObjectRaw() RawString {
 		}
 		c = iter.nextToken()
 		if c != ':' {
-			iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+			iter.ReportError("ReadObject", "expect : after object field, but found "+string(c))
 		}
 		return rs
 	case '}':
 		return RawString{} // end of object
 	default:
-		iter.ReportError("ReadObject", fmt.Sprintf(`expect { or , or } or n, but found %s`, string([]byte{c})))
+		iter.ReportError("ReadObject", fmt.Sprintf(`expect { or , or } or n, but found %s`, string(c)))
 		return RawString{}
 	}
 }
@@ -65,7 +65,7 @@ func (iter *Iterator) readFieldHash() int64 {
 	hash := int64(0x811c9dc5)
 	c := iter.nextToken()
 	if c != '"' {
-		iter.ReportError("readFieldHash", `expect ", but found `+string([]byte{c}))
+		iter.ReportError("readFieldHash", `expect ", but found `+string(c))
 		return 0
 	}
 	for {
@@ -83,7 +83,7 @@ func (iter *Iterator) readFieldHash() int64 {
 				}
 				c = iter.nextToken()
 				if c != ':' {
-					iter.ReportError("readFieldHash", `expect :, but found `+string([]byte{c}))
+					iter.ReportError("readFieldHash", `expect :, but found `+string(c))
 					return 0
 				}
 				return hash
@@ -92,7 +92,7 @@ func (iter *Iterator) readFieldHash() int64 {
 				iter.head = i + 1
 				c = iter.nextToken()
 				if c != ':' {
-					iter.ReportError("readFieldHash", `expect :, but found `+string([]byte{c}))
+					iter.ReportError("readFieldHash", `expect :, but found `+string(c))
 					return 0
 				}
 				return hash
@@ -144,7 +144,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 			}
 			c = iter.nextToken()
 			if c != ':' {
-				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+				iter.ReportError("ReadObject", "expect : after object field, but found "+string(c))
 				return false
 			}
 			if !callback(iter, rs) {
@@ -159,7 +159,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 				}
 				c = iter.nextToken()
 				if c != ':' {
-					iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+					iter.ReportError("ReadObject", "expect : after object field, but found "+string(c))
 					return false
 				}
 				if !callback(iter, rs) {
@@ -177,7 +177,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 		if c == '}' {
 			return iter.decrementDepth()
 		}
-		iter.ReportError("ReadObjectCB", `expect " after {, but found `+string([]byte{c}))
+		iter.ReportError("ReadObjectCB", `expect " after {, but found `+string(c))
 		iter.decrementDepth()
 		return false
 	}
@@ -185,7 +185,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 		iter.ensureLiteral(nullLiteral)
 		return true // null
 	}
-	iter.ReportError("ReadObjectCB", `expect { or n, but found `+string([]byte{c}))
+	iter.ReportError("ReadObjectCB", `expect { or n, but found `+string(c))
 	return false
 }
 
@@ -207,7 +207,7 @@ func (iter *Iterator) readObjectStart() bool {
 		iter.ensureLiteral(nullLiteral)
 		return false
 	}
-	iter.ReportError("readObjectStart", "expect { or n, but found "+string([]byte{c}))
+	iter.ReportError("readObjectStart", "expect { or n, but found "+string(c))
 	return false
 }
 
@@ -220,6 +220,6 @@ func (iter *Iterator) isObjectEnd() bool {
 		return true
 	}
 
-	iter.ReportError("isObjectEnd", "object ended prematurely, unexpected char "+string([]byte{c}))
+	iter.ReportError("isObjectEnd", "object ended prematurely, unexpected char "+string(c))
 	return true
 }

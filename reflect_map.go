@@ -161,7 +161,7 @@ func (decoder *mapDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) {
 		mapType.UnsafeSet(ptr, mapType.UnsafeMakeMap(0))
 	}
 	if c != '{' {
-		iter.ReportError("ReadMapCB", `expect { or n, but found `+string([]byte{c}))
+		iter.ReportError("ReadMapCB", `expect { or n, but found `+string(c))
 		return
 	}
 	c = iter.nextToken()
@@ -173,7 +173,7 @@ func (decoder *mapDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	decoder.keyDecoder.Decode(key, iter)
 	c = iter.nextToken()
 	if c != ':' {
-		iter.ReportError("ReadMapCB", "expect : after object field, but found "+string([]byte{c}))
+		iter.ReportError("ReadMapCB", "expect : after object field, but found "+string(c))
 		return
 	}
 	elem := decoder.elemType.UnsafeNew()
@@ -184,7 +184,7 @@ func (decoder *mapDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) {
 		decoder.keyDecoder.Decode(key, iter)
 		c = iter.nextToken()
 		if c != ':' {
-			iter.ReportError("ReadMapCB", "expect : after object field, but found "+string([]byte{c}))
+			iter.ReportError("ReadMapCB", "expect : after object field, but found "+string(c))
 			return
 		}
 		elem := decoder.elemType.UnsafeNew()
@@ -192,7 +192,7 @@ func (decoder *mapDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) {
 		decoder.mapType.UnsafeSetIndex(ptr, key, elem)
 	}
 	if c != '}' {
-		iter.ReportError("ReadMapCB", `expect }, but found `+string([]byte{c}))
+		iter.ReportError("ReadMapCB", `expect }, but found `+string(c))
 	}
 }
 
@@ -203,13 +203,13 @@ type numericMapKeyDecoder struct {
 func (decoder *numericMapKeyDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) {
 	c := iter.nextToken()
 	if c != '"' {
-		iter.ReportError("ReadMapCB", `expect ", but found `+string([]byte{c}))
+		iter.ReportError("ReadMapCB", `expect ", but found `+string(c))
 		return
 	}
 	decoder.decoder.Decode(ptr, iter)
 	c = iter.nextToken()
 	if c != '"' {
-		iter.ReportError("ReadMapCB", `expect ", but found `+string([]byte{c}))
+		iter.ReportError("ReadMapCB", `expect ", but found `+string(c))
 		return
 	}
 }

@@ -511,7 +511,7 @@ func (decoder *generalStructDecoder) Decode(ptr unsafe.Pointer, iter *Iterator) 
 		iter.Error = fmt.Errorf("%v.%s", decoder.typ, iter.Error.Error())
 	}
 	if c != '}' {
-		iter.ReportError("struct Decode", `expect }, but found `+string([]byte{c}))
+		iter.ReportError("struct Decode", `expect }, but found `+string(c))
 	}
 	iter.decrementDepth()
 }
@@ -541,14 +541,14 @@ func (decoder *generalStructDecoder) decodeOneField(ptr unsafe.Pointer, iter *It
 		}
 		c := iter.nextToken()
 		if c != ':' {
-			iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+			iter.ReportError("ReadObject", "expect : after object field, but found "+string(c))
 		}
 		iter.Skip()
 		return
 	}
 	c := iter.nextToken()
 	if c != ':' {
-		iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
+		iter.ReportError("ReadObject", "expect : after object field, but found "+string(c))
 	}
 	fieldDecoder.Decode(ptr, iter)
 }
@@ -1083,7 +1083,7 @@ func (decoder *stringModeNumberDecoder) Decode(ptr unsafe.Pointer, iter *Iterato
 
 	c := iter.nextToken()
 	if c != '"' {
-		iter.ReportError("stringModeNumberDecoder", `expect ", but found `+string([]byte{c}))
+		iter.ReportError("stringModeNumberDecoder", `expect ", but found `+string(c))
 		return
 	}
 	raw := iter.readRawStringInner()
