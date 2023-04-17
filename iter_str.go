@@ -150,16 +150,14 @@ outerLoop:
 				// are we about to change iter.buf?
 				if i+4 >= iter.tail {
 					copied.Write(iter.buf[copyStart:iter.head])
-					buf := iter.storeU4()
+					buf := iter.readU4Buf()
 					copied.Write(buf[:])
 					copyStart = iter.head
 					continue outerLoop
 				}
 
-				var u4 [4]byte
-				copy(u4[:], iter.buf[i+1:i+5])
-
-				if parseU4(u4) == -1 {
+				u4 := u4bufFromBytes(iter.buf[i+1 : i+5])
+				if u4.Parse() < 0 {
 					iter.ReportError("ReadRawString", "invalid unicode escape sequence")
 					return RawString{}
 				}
@@ -267,7 +265,15 @@ func fromHexChar(c byte) (byte, bool) {
 	return 0, false
 }
 
-func parseU4(buf [4]byte) rune {
+type u4buf [4]byte
+
+func u4bufFromBytes(data []byte) u4buf {
+	var u4 u4buf
+	copy(u4[:], data[0:4])
+	return u4
+}
+
+func (buf u4buf) Parse() rune {
 	allOk := true
 
 	a, ok := fromHexChar(buf[0])
@@ -291,20 +297,20 @@ func parseU4(buf [4]byte) rune {
 }
 
 func (iter *Iterator) readU4() rune {
-	var u4 [4]byte
+	var u4 u4buf
 
 	startIdx := iter.head
 	end := startIdx + 4
 
 	if startIdx < 0 || end > len(iter.buf) || end < startIdx {
-		u4 = iter.storeU4()
+		u4 = iter.readU4Buf()
 	} else {
 		copy(u4[:], iter.buf[startIdx:end])
 
 		iter.head += 4
 	}
 
-	ret := parseU4(u4)
+	ret := u4.Parse()
 	if ret < 0 {
 		iter.ReportError("readU4", "invalid hex char")
 		return 0
@@ -313,7 +319,7 @@ func (iter *Iterator) readU4() rune {
 	return ret
 }
 
-func (iter *Iterator) storeU4() (buf [4]byte) {
+func (iter *Iterator) readU4Buf() (buf u4buf) {
 	for i := 0; i < 4; i++ {
 		c := iter.readByte()
 		if iter.Error != nil {
@@ -336,5 +342,6 @@ func (iter *Iterator) storeU4() (buf [4]byte) {
 		iter.ReportError("readU4", "invalid hex char")
 		return
 	}
+
 	return buf
 }

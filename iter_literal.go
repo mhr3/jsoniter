@@ -25,11 +25,11 @@ var literalTable = [...]string{
 }
 
 func (lit jsonLiteral) String() string {
-	return literalTable[lit]
+	return literalTable[lit&3]
 }
 
 func (lit jsonLiteral) Len() int {
-	return len(literalTable[lit])
+	return len(literalTable[lit&3])
 }
 
 func (lit jsonLiteral) EqualBytes(data []byte, headOffset int) bool {
@@ -38,7 +38,7 @@ func (lit jsonLiteral) EqualBytes(data []byte, headOffset int) bool {
 		offset = firstByteSkippedOffset
 	}
 
-	return string(data) == literalTable[lit+offset]
+	return string(data) == literalTable[(lit+offset)%7]
 }
 
 // note that this function expects the head to be at the first byte of the literal

@@ -26,10 +26,9 @@ const (
 	ObjectValue
 )
 
-var valueTypes []ValueType
+var valueTypes [256]ValueType
 
 func init() {
-	valueTypes = make([]ValueType, 256)
 	valueTypes['"'] = StringValue
 	valueTypes['-'] = NumberValue
 	valueTypes['0'] = NumberValue
@@ -121,6 +120,7 @@ func (iter *Iterator) Reset(reader io.Reader) *Iterator {
 	iter.tail = 0
 	iter.depth = 0
 	iter.inputOffset = 0
+	iter.Error = nil
 	return iter
 }
 
@@ -132,6 +132,7 @@ func (iter *Iterator) ResetBytes(input []byte) *Iterator {
 	iter.tail = len(input)
 	iter.depth = 0
 	iter.inputOffset = 0
+	iter.Error = nil
 	return iter
 }
 
@@ -189,25 +190,15 @@ func (iter *Iterator) nextToken() byte {
 }
 
 func (iter *Iterator) isStreamEnd() bool {
-	// checks if the end of input is reached, skipping any whitespace
-	for {
-		// eliminate bounds check
-		if iter.head >= 0 && iter.tail <= len(iter.buf) {
-			for i := iter.head; i < iter.tail; i++ {
-				c := iter.buf[i]
-				// skip whitespaces
-				switch c {
-				case ' ', '\n', '\t', '\r':
-					continue
-				}
-				iter.head = i + 1
-				return false
-			}
-		}
-		if !iter.loadMore() {
-			return iter.Error == io.EOF
-		}
+	if iter.Error != nil {
+		return iter.Error == io.EOF
 	}
+
+	if iter.nextToken() > 0 {
+		return false
+	}
+
+	return iter.Error == io.EOF
 }
 
 // ReportError record a error in iterator instance with current position.
@@ -250,17 +241,13 @@ func (iter *Iterator) CurrentBuffer() string {
 }
 
 func (iter *Iterator) readByte() (ret byte) {
-	if iter.head == iter.tail {
-		if iter.loadMore() {
-			ret = iter.buf[iter.head]
-			iter.head++
-			return ret
-		}
-		return 0
+	if iter.head >= iter.tail && !iter.loadMore() {
+		return
 	}
+
 	ret = iter.buf[iter.head]
 	iter.head++
-	return ret
+	return
 }
 
 func (iter *Iterator) loadMore() bool {
