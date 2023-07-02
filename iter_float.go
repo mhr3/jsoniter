@@ -5,7 +5,6 @@ import (
 	"io"
 	"math/big"
 	"strconv"
-	"unsafe"
 )
 
 // ReadBigFloat read big.Float
@@ -216,30 +215,13 @@ func (iter *Iterator) readNumberAsString() (ret string) {
 	return string(rs.buf)
 }
 
-// noescape hides a pointer from escape analysis. It is the identity function
-// but escape analysis doesn't think the output depends on the input.
-//go:nosplit
-//go:nocheckptr
-func noescape(p unsafe.Pointer) unsafe.Pointer {
-	x := uintptr(p)
-	return unsafe.Pointer(x ^ 0)
-}
-
 func parseFloatBytes(b []byte, bitSize int) (float64, error) {
-	s := *(*string)(noescape(unsafe.Pointer(&b)))
-
-	res, err := strconv.ParseFloat(s, bitSize)
-	if err != nil {
-		if nErr, ok := err.(*strconv.NumError); ok {
-			// the .Num points to an unsafe string, so we need to copy it
-			nErr.Num = string(b)
-			err = nErr
-		}
-	}
-	return res, err
+	// the []byte to string conversion used to cause an alloc,
+	// but that's no longer the case as of go1.20
+	return strconv.ParseFloat(string(b), bitSize)
 }
 
-//ReadFloat32 read float32
+// ReadFloat32 read float32
 func (iter *Iterator) ReadFloat32() (ret float32) {
 	rs := iter.readNumberRaw(nil)
 	if iter.Error != nil && iter.Error != io.EOF {
