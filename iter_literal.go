@@ -69,6 +69,7 @@ func (iter *Iterator) skipLiteralBytes(lit jsonLiteral, litOffset int) {
 
 	comparer := lit.String()
 	comparer = comparer[litOffset:]
+	comparerLen = len(comparer) // eliminate the compiler bounds check inside the loop
 
 	for i := 0; i < comparerLen; i++ {
 		if iter.readByte() != comparer[i] {
