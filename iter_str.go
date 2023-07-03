@@ -189,6 +189,15 @@ outerLoop:
 }
 
 func (iter *Iterator) readEscapedChar(sb *strings.Builder) {
+	if iter.tail-iter.head > 11 {
+		adv, err := unescapedSequence(sb, iter.buf[iter.head:iter.head+11])
+		if err != nil {
+			iter.ReportError("readEscapedChar", err.Error())
+		}
+		iter.head += adv
+		return
+	}
+
 	c := iter.readByte()
 
 start:
@@ -244,7 +253,7 @@ start:
 	case 't':
 		sb.WriteByte('\t')
 	default:
-		iter.ReportError("readEscapedChar", `invalid escape char after \`)
+		iter.ReportError("readEscapedChar", errInvalidEscape.Error())
 	}
 }
 
@@ -269,7 +278,7 @@ type u4buf [4]byte
 
 func u4bufFromBytes(data []byte) u4buf {
 	var u4 u4buf
-	copy(u4[:], data[0:4])
+	copy(u4[:], data[:4])
 	return u4
 }
 
@@ -296,6 +305,15 @@ func (buf u4buf) Parse() rune {
 	return ret<<8 | rune(a<<4|b)
 }
 
+func (buf u4buf) IsValid() bool {
+	_, ok1 := fromHexChar(buf[0])
+	_, ok2 := fromHexChar(buf[1])
+	_, ok3 := fromHexChar(buf[2])
+	_, ok4 := fromHexChar(buf[3])
+
+	return ok1 && ok2 && ok3 && ok4
+}
+
 func (iter *Iterator) readU4() rune {
 	var u4 u4buf
 
@@ -320,25 +338,16 @@ func (iter *Iterator) readU4() rune {
 }
 
 func (iter *Iterator) readU4Buf() (buf u4buf) {
-	for i := 0; i < 4; i++ {
-		c := iter.readByte()
-		if iter.Error != nil {
-			return
-		}
-		buf[i] = c
-		c -= '0'
-		if c <= 9 {
-			continue
-		}
-		c -= 'A' - '0'
-		if c <= 5 {
-			continue
-		}
-		c -= 'a' - 'A'
-		if c <= 5 {
-			continue
-		}
+	buf[0] = iter.readByte()
+	buf[1] = iter.readByte()
+	buf[2] = iter.readByte()
+	buf[3] = iter.readByte()
 
+	if iter.Error != nil {
+		return
+	}
+
+	if !buf.IsValid() {
 		iter.ReportError("readU4", "invalid hex char")
 		return
 	}
