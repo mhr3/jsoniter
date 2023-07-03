@@ -10,35 +10,24 @@ const (
 	nullLiteral jsonLiteral = iota
 	trueLiteral
 	falseLiteral
-
-	firstByteSkippedOffset = 4
 )
 
 var literalTable = [...]string{
 	nullLiteral:  "null",
 	trueLiteral:  "true",
 	falseLiteral: "false",
-
-	nullLiteral + firstByteSkippedOffset:  "ull",
-	trueLiteral + firstByteSkippedOffset:  "rue",
-	falseLiteral + firstByteSkippedOffset: "alse",
 }
 
-func (lit jsonLiteral) String() string {
-	return literalTable[lit&3]
+func (l jsonLiteral) String() string {
+	return literalTable[l%3]
 }
 
-func (lit jsonLiteral) Len() int {
-	return len(literalTable[lit&3])
+func (l jsonLiteral) Len() int {
+	return len(literalTable[l%3])
 }
 
-func (lit jsonLiteral) EqualBytes(data []byte, headOffset int) bool {
-	var offset jsonLiteral
-	if headOffset > 0 {
-		offset = firstByteSkippedOffset
-	}
-
-	return string(data) == literalTable[(lit+offset)%7]
+func (l jsonLiteral) EqualBytes(data []byte, headOffset int) bool {
+	return string(data) == literalTable[l%3][headOffset:]
 }
 
 // note that this function expects the head to be at the first byte of the literal
