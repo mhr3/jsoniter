@@ -1,10 +1,16 @@
 package test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
+	"testing"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -129,4 +135,43 @@ func (c customKey) MarshalText() ([]byte, error) {
 func (c *customKey) UnmarshalText(value []byte) error {
 	*c = 1
 	return nil
+}
+
+func Test_write_invalid_floats_in_maps(t *testing.T) {
+	vals := []interface{}{
+		math.Inf(1),
+		math.Inf(-1),
+		math.NaN(),
+	}
+	
+	var ConfigInvalidFloats = jsoniter.Config{
+		EscapeHTML:                    false,
+		MarshalFloatWith6Digits:       true, // will lose precession
+		ObjectFieldMustBeSimpleString: true, // do not unescape object field
+		InvalidFloatToNil:             true,
+	}.Froze()
+
+	for _, val := range vals {
+		t.Run(fmt.Sprintf("%v", val), func(t *testing.T) {
+			should := require.New(t)
+			buf := &bytes.Buffer{}
+			stream := jsoniter.NewStream(ConfigInvalidFloats, buf, 4096)
+			stream.WriteVal(map[string]interface{}{
+				"key": val,
+			})
+			stream.Flush()
+			should.Nil(stream.Error)
+			should.Equal(`{"key":null}`, buf.String())
+		})
+		t.Run(fmt.Sprintf("%v", val), func(t *testing.T) {
+			should := require.New(t)
+			buf := &bytes.Buffer{}
+			stream := jsoniter.NewStream(jsoniter.ConfigDefault, buf, 4096)
+			stream.WriteVal(map[string]interface{}{
+				"key": val,
+			})
+			stream.Flush()
+			should.Error(stream.Error)
+		})
+	}
 }
