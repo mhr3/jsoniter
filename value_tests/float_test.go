@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/json-iterator/go"
-	"github.com/stretchr/testify/require"
+	"math"
 	"strconv"
 	"testing"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_read_float(t *testing.T) {
@@ -127,3 +129,46 @@ func Test_write_float64(t *testing.T) {
 	stream.WriteFloat64(float64(0.0000001))
 	should.Equal("1e-07", string(stream.Buffer()))
 }
+
+func Test_write_invalid_floats(t *testing.T) {
+	vals := []float64{math.NaN(), math.Inf(1), math.Inf(-1)}
+
+	var ConfigInvalidFloats = jsoniter.Config{
+		EscapeHTML:                    false,
+		MarshalFloatWith6Digits:       true, // will lose precession
+		ObjectFieldMustBeSimpleString: true, // do not unescape object field
+		InvalidFloatToNil:              true,
+	}.Froze()
+
+	for _, val := range vals {
+		t.Run(fmt.Sprintf("%v", val), func(t *testing.T) {
+			should := require.New(t)
+			buf := &bytes.Buffer{}
+			stream := jsoniter.NewStream(ConfigInvalidFloats, buf, 4096)
+			stream.WriteFloat64Lossy(val)
+			stream.Flush()
+			should.Nil(stream.Error)
+			should.Equal("null", buf.String())
+		})
+		t.Run(fmt.Sprintf("%v", val), func(t *testing.T) {
+			should := require.New(t)
+			buf := &bytes.Buffer{}
+			stream := jsoniter.NewStream(ConfigInvalidFloats, buf, 4096)
+			stream.WriteVal(val)
+			stream.Flush()
+			should.Nil(stream.Error)
+			should.Equal("null", buf.String())
+		})
+		t.Run(fmt.Sprintf("%v", val), func(t *testing.T) {
+			should := require.New(t)
+			buf := &bytes.Buffer{}
+			// we are now using default config without InvalidFloatToNil
+			// so we are expecting error
+			stream := jsoniter.NewStream(jsoniter.ConfigDefault, buf, 4096) 
+			stream.WriteVal(val)
+			stream.Flush()
+			should.Error(stream.Error)
+		})
+	}
+}
+
