@@ -148,6 +148,9 @@ func (iter *Iterator) InputOffset() int64 {
 }
 
 func (iter *Iterator) isNextTokenBuffered() bool {
+	if iter.head < 0 || iter.head >= iter.tail || iter.tail > len(iter.buf) {
+		return false
+	}
 	for i := iter.head; i < iter.tail; i++ {
 		c := iter.buf[i]
 		// skip whitespaces
@@ -268,7 +271,6 @@ func (iter *Iterator) unreadByte() {
 		return
 	}
 	iter.head--
-	return
 }
 
 // Read read the next JSON element as generic interface{}.
