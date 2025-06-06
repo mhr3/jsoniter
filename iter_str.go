@@ -16,6 +16,7 @@ func (iter *Iterator) ReadString() string {
 		iter.skipThreeBytes('u', 'l', 'l')
 		return ""
 	default:
+		iter.unreadByte()
 		iter.ReportError("ReadString", `expects " or n, but found `+string([]byte{c}))
 		return ""
 	}
@@ -89,6 +90,7 @@ func (iter *Iterator) ReadRawString() RawString {
 		iter.skipThreeBytes('u', 'l', 'l')
 		return RawString{}
 	default:
+		iter.unreadByte()
 		iter.ReportError("ReadRawString", `expects " or n, but found `+string([]byte{c}))
 		return RawString{}
 	}

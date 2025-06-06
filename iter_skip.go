@@ -92,6 +92,7 @@ func (iter *Iterator) Skip() {
 	case '{':
 		iter.skipObject()
 	default:
+		iter.unreadByte()
 		iter.ReportError("Skip", fmt.Sprintf("do not know how to skip: %v", c))
 		return
 	}

@@ -33,6 +33,7 @@ func (iter *Iterator) ReadObjectRaw() RawString {
 			}
 			c = iter.nextToken()
 			if c != ':' {
+				iter.unreadByte()
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 			}
 			return rs
@@ -49,12 +50,14 @@ func (iter *Iterator) ReadObjectRaw() RawString {
 		}
 		c = iter.nextToken()
 		if c != ':' {
+			iter.unreadByte()
 			iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 		}
 		return rs
 	case '}':
 		return RawString{} // end of object
 	default:
+		iter.unreadByte()
 		iter.ReportError("ReadObject", fmt.Sprintf(`expect { or , or } or n, but found %s`, string([]byte{c})))
 		return RawString{}
 	}
@@ -65,6 +68,7 @@ func (iter *Iterator) readFieldHash() int64 {
 	hash := int64(0x811c9dc5)
 	c := iter.nextToken()
 	if c != '"' {
+		iter.unreadByte()
 		iter.ReportError("readFieldHash", `expect ", but found `+string([]byte{c}))
 		return 0
 	}
@@ -83,6 +87,7 @@ func (iter *Iterator) readFieldHash() int64 {
 				}
 				c = iter.nextToken()
 				if c != ':' {
+					iter.unreadByte()
 					iter.ReportError("readFieldHash", `expect :, but found `+string([]byte{c}))
 					return 0
 				}
@@ -92,6 +97,7 @@ func (iter *Iterator) readFieldHash() int64 {
 				iter.head = i + 1
 				c = iter.nextToken()
 				if c != ':' {
+					iter.unreadByte()
 					iter.ReportError("readFieldHash", `expect :, but found `+string([]byte{c}))
 					return 0
 				}
@@ -144,6 +150,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 			}
 			c = iter.nextToken()
 			if c != ':' {
+				iter.unreadByte()
 				iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 				return false
 			}
@@ -159,6 +166,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 				}
 				c = iter.nextToken()
 				if c != ':' {
+					iter.unreadByte()
 					iter.ReportError("ReadObject", "expect : after object field, but found "+string([]byte{c}))
 					return false
 				}
@@ -169,6 +177,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 				c = iter.nextToken()
 			}
 			if c != '}' {
+				iter.unreadByte()
 				iter.ReportError("ReadObjectCB", `object not ended with }`)
 				return false
 			}
@@ -177,6 +186,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 		if c == '}' {
 			return iter.decrementDepth()
 		}
+		iter.unreadByte()
 		iter.ReportError("ReadObjectCB", `expect " after {, but found `+string([]byte{c}))
 		iter.decrementDepth()
 		return false
@@ -185,6 +195,7 @@ func (iter *Iterator) ReadObjectRawCB(callback func(*Iterator, RawString) bool) 
 		iter.skipThreeBytes('u', 'l', 'l')
 		return true // null
 	}
+	iter.unreadByte()
 	iter.ReportError("ReadObjectCB", `expect { or n, but found `+string([]byte{c}))
 	return false
 }
@@ -219,7 +230,7 @@ func (iter *Iterator) isObjectEnd() bool {
 	if c == '}' {
 		return true
 	}
-
+	iter.unreadByte()
 	iter.ReportError("isObjectEnd", "object ended prematurely, unexpected char "+string([]byte{c}))
 	return true
 }

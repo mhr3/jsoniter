@@ -1,6 +1,7 @@
 package jsoniter
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -147,6 +148,15 @@ func (iter *Iterator) InputOffset() int64 {
 	return iter.inputOffset + int64(iter.head)
 }
 
+// Buffered returns a reader of the data remaining in the Iterator's buffer.
+func (iter *Iterator) Buffered() io.Reader {
+	// we make a copy of the data, so callers can Reset this Iterator
+	// and operate on the same data without data races
+	buf := make([]byte, iter.tail-iter.head)
+	copy(buf, iter.buf[iter.head:iter.tail])
+	return bytes.NewReader(buf)
+}
+
 func (iter *Iterator) isNextTokenBuffered() bool {
 	for i := iter.head; i < iter.tail; i++ {
 		c := iter.buf[i]
@@ -268,7 +278,6 @@ func (iter *Iterator) unreadByte() {
 		return
 	}
 	iter.head--
-	return
 }
 
 // Read read the next JSON element as generic interface{}.
