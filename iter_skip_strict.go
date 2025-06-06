@@ -23,6 +23,11 @@ func (iter *Iterator) skipNumber() {
 
 func (iter *Iterator) trySkipNumber() bool {
 	dotFound := false
+
+	if iter.head < 0 || iter.head >= iter.tail || iter.tail > len(iter.buf) {
+		return false
+	}
+
 	for i := iter.head; i < iter.tail; i++ {
 		c := iter.buf[i]
 		switch c {
@@ -59,17 +64,19 @@ func (iter *Iterator) trySkipNumber() bool {
 }
 
 func (iter *Iterator) skipString() {
-	for i := iter.head; i < iter.tail; i++ {
-		c := iter.buf[i]
-		if c == '"' {
-			iter.head = i + 1
-			return // skipped the entire string
-		} else if c == '\\' {
-			iter.head = i
-			break
-		} else if c < ' ' {
-			iter.head = i
-			break
+	if iter.head >= 0 && iter.head < iter.tail && iter.tail <= len(iter.buf) {
+		for i := iter.head; i < iter.tail; i++ {
+			c := iter.buf[i]
+			if c == '"' {
+				iter.head = i + 1
+				return // skipped the entire string
+			} else if c == '\\' {
+				iter.head = i
+				break
+			} else if c < ' ' {
+				iter.head = i
+				break
+			}
 		}
 	}
 

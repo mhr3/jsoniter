@@ -265,12 +265,8 @@ func (iter *Iterator) parseU4() (ret rune) {
 			ret = ret*16 + rune(c)
 			continue
 		}
-		c -= 'A' - '0'
-		if c <= 5 {
-			ret = ret*16 + rune(c+10)
-			continue
-		}
-		c -= 'a' - 'A'
+		c |= 0x20 // lowercase
+		c -= 'a' - '0'
 		if c <= 5 {
 			ret = ret*16 + rune(c+10)
 			continue
@@ -301,12 +297,8 @@ func (iter *Iterator) readU4() (ret rune) {
 			ret = ret*16 + rune(c)
 			continue
 		}
-		c -= 'A' - '0'
-		if c <= 5 {
-			ret = ret*16 + rune(c+10)
-			continue
-		}
-		c -= 'a' - 'A'
+		c |= 0x20 // lowercase
+		c -= 'a' - '0'
 		if c <= 5 {
 			ret = ret*16 + rune(c+10)
 			continue
@@ -334,12 +326,8 @@ func (iter *Iterator) readAndFillU4(buf []byte) (ret rune) {
 			ret = ret*16 + rune(c)
 			continue
 		}
-		c -= 'A' - '0'
-		if c <= 5 {
-			ret = ret*16 + rune(c+10)
-			continue
-		}
-		c -= 'a' - 'A'
+		c |= 0x20 // lowercase
+		c -= 'a' - '0'
 		if c <= 5 {
 			ret = ret*16 + rune(c+10)
 			continue

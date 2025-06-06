@@ -104,14 +104,9 @@ func (any *arrayLazyAny) Get(path ...interface{}) Any {
 	case int:
 		iter := any.cfg.BorrowIterator(any.buf)
 		defer any.cfg.ReturnIterator(iter)
-		valueBytes := locateArrayElement(iter, firstPath)
-		if valueBytes == nil {
-			return newInvalidAny(path)
-		}
-		iter.ResetBytes(valueBytes)
-		return locatePath(iter, path[1:])
+		return locatePath(iter, path)
 	case int32:
-		if '*' == firstPath {
+		if firstPath == '*' {
 			iter := any.cfg.BorrowIterator(any.buf)
 			defer any.cfg.ReturnIterator(iter)
 			arr := make([]Any, 0)

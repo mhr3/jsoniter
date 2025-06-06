@@ -3,11 +3,12 @@ package jsoniter
 import (
 	"errors"
 	"fmt"
-	"github.com/modern-go/reflect2"
 	"io"
 	"reflect"
 	"strconv"
 	"unsafe"
+
+	"github.com/modern-go/reflect2"
 )
 
 // Any generic object representation.
@@ -199,51 +200,53 @@ func (iter *Iterator) readArrayAny() Any {
 	return &arrayLazyAny{baseAny{}, iter.cfg, lazyBuf, nil}
 }
 
-func locateObjectField(iter *Iterator, target string) []byte {
-	var found []byte
-	iter.ReadObjectCB(func(iter *Iterator, field string) bool {
-		if field == target {
-			found = iter.SkipAndReturnBytes()
-			return false
+func findObjectField(iter *Iterator, target string) bool {
+	for rs := iter.ReadObjectRaw(); !rs.IsNil(); rs = iter.ReadObjectRaw() {
+		var keyMatches bool
+		if rs.ContainsEscapes() {
+			keyMatches = rs.String() == target
+		} else {
+			raw, _ := rs.Bytes()
+			keyMatches = target == string(raw)
+		}
+
+		if keyMatches {
+			return true
 		}
 		iter.Skip()
-		return true
-	})
-	return found
+	}
+
+	return false
 }
 
-func locateArrayElement(iter *Iterator, target int) []byte {
-	var found []byte
+func findArrayElement(iter *Iterator, target int) bool {
 	n := 0
-	iter.ReadArrayCB(func(iter *Iterator) bool {
+	for iter.ReadArray() {
 		if n == target {
-			found = iter.SkipAndReturnBytes()
-			return false
+			return true
 		}
 		iter.Skip()
 		n++
-		return true
-	})
-	return found
+	}
+
+	return false
 }
 
 func locatePath(iter *Iterator, path []interface{}) Any {
 	for i, pathKeyObj := range path {
 		switch pathKey := pathKeyObj.(type) {
 		case string:
-			valueBytes := locateObjectField(iter, pathKey)
-			if valueBytes == nil {
+			found := findObjectField(iter, pathKey)
+			if !found {
 				return newInvalidAny(path[i:])
 			}
-			iter.ResetBytes(valueBytes)
 		case int:
-			valueBytes := locateArrayElement(iter, pathKey)
-			if valueBytes == nil {
+			found := findArrayElement(iter, pathKey)
+			if !found {
 				return newInvalidAny(path[i:])
 			}
-			iter.ResetBytes(valueBytes)
 		case int32:
-			if '*' == pathKey {
+			if pathKey == '*' {
 				return iter.readAny().Get(path[i:]...)
 			}
 			return newInvalidAny(path[i:])

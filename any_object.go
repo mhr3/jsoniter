@@ -78,14 +78,9 @@ func (any *objectLazyAny) Get(path ...interface{}) Any {
 	case string:
 		iter := any.cfg.BorrowIterator(any.buf)
 		defer any.cfg.ReturnIterator(iter)
-		valueBytes := locateObjectField(iter, firstPath)
-		if valueBytes == nil {
-			return newInvalidAny(path)
-		}
-		iter.ResetBytes(valueBytes)
-		return locatePath(iter, path[1:])
+		return locatePath(iter, path)
 	case int32:
-		if '*' == firstPath {
+		if firstPath == '*' {
 			mappedAll := map[string]Any{}
 			iter := any.cfg.BorrowIterator(any.buf)
 			defer any.cfg.ReturnIterator(iter)

@@ -307,7 +307,7 @@ func readLevel1Hello(iter *jsoniter.Iterator) []Level2 {
 	l2Array := make([]Level2, 0, 2)
 	for iter.ReadArray() {
 		l2 := Level2{}
-		for l2Field, ok := iter.ReadObject(); ok; l2Field, _ = iter.ReadObject() {
+		for l2Field, ok := iter.ReadObject(); ok; l2Field, ok = iter.ReadObject() {
 			switch l2Field {
 			case "world":
 				l2.World = iter.ReadString()
