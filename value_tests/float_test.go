@@ -90,7 +90,7 @@ func Test_write_float32(t *testing.T) {
 
 	stream = jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
 	stream.WriteFloat32(float32(0.0000001))
-	should.Equal("1e-07", string(stream.Buffer()))
+	should.Equal("1e-7", string(stream.Buffer()))
 }
 
 func Test_write_float64(t *testing.T) {
@@ -127,7 +127,7 @@ func Test_write_float64(t *testing.T) {
 
 	stream = jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
 	stream.WriteFloat64(float64(0.0000001))
-	should.Equal("1e-07", string(stream.Buffer()))
+	should.Equal("1e-7", string(stream.Buffer()))
 }
 
 func Test_write_invalid_floats(t *testing.T) {
@@ -137,7 +137,7 @@ func Test_write_invalid_floats(t *testing.T) {
 		EscapeHTML:                    false,
 		MarshalFloatWith6Digits:       true, // will lose precession
 		ObjectFieldMustBeSimpleString: true, // do not unescape object field
-		InvalidFloatToNil:              true,
+		InvalidFloatToNil:             true,
 	}.Froze()
 
 	for _, val := range vals {
@@ -164,11 +164,10 @@ func Test_write_invalid_floats(t *testing.T) {
 			buf := &bytes.Buffer{}
 			// we are now using default config without InvalidFloatToNil
 			// so we are expecting error
-			stream := jsoniter.NewStream(jsoniter.ConfigDefault, buf, 4096) 
+			stream := jsoniter.NewStream(jsoniter.ConfigDefault, buf, 4096)
 			stream.WriteVal(val)
 			stream.Flush()
 			should.Error(stream.Error)
 		})
 	}
 }
-
