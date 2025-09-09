@@ -3,7 +3,7 @@ package test
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/json-iterator/go"
+	"github.com/mhr3/jsoniter"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"testing"

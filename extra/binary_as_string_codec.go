@@ -4,7 +4,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
-	jsoniter "github.com/json-iterator/go"
+	jsoniter "github.com/mhr3/jsoniter"
 	"github.com/modern-go/reflect2"
 )
 

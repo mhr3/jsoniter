@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	jsoniter "github.com/mhr3/jsoniter"
 )
 
 func getTestDataReader(name string) (io.ReadCloser, io.Closer, error) {

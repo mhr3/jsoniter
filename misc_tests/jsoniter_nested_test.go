@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
+	jsoniter "github.com/mhr3/jsoniter"
 )
 
 type Level1 struct {

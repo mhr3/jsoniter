@@ -10,7 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	fuzz "github.com/google/gofuzz"
-	jsoniter "github.com/json-iterator/go"
+	jsoniter "github.com/mhr3/jsoniter"
 )
 
 var testCases []interface{}
