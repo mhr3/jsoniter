@@ -2,6 +2,7 @@ package misc_tests
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,7 +23,15 @@ func Test_bad_case(t *testing.T) {
 			for iter.ReadArray() {
 				for field, _ := iter.ReadObject(); field != ""; field, _ = iter.ReadObject() {
 					if field == "Bit" {
-						iter.ReadStringAsSlice()
+						slc := iter.ReadStringAsSlice()
+						decoded := make([]byte, 600)
+						n, err := base64.StdEncoding.Decode(decoded, slc)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if n != 581 {
+							t.Fatal(n)
+						}
 					} else {
 						if field != "Size" && field != "EndIndex" && field != "EndMask" && field != "Good" && field != "Flush" {
 							t.Fatal(field)
