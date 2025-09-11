@@ -28,7 +28,9 @@ func (iter *Iterator) ReadString() string {
 // The []byte can not be kept, as it will change after next iterator call.
 // DEPRECATED: Use ReadRawString instead
 func (iter *Iterator) ReadStringAsSlice() (ret []byte) {
-	return iter.ReadRawString().buf
+	rs := iter.ReadRawString()
+	ret, _ = rs.Bytes()
+	return ret
 }
 
 func (iter *Iterator) readStringInner() string {
