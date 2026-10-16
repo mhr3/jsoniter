@@ -3,8 +3,10 @@ package jsoniter
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // ValueType the type for JSON element
@@ -217,8 +219,9 @@ func (iter *Iterator) ReportError(operation string, msg string) {
 		contextEnd = iter.tail
 	}
 	context := string(iter.buf[contextStart:contextEnd])
-	iter.Error = fmt.Errorf("%s: %s, error found in #%v byte of ...|%s|..., bigger context ...|%s|...",
-		operation, msg, iter.head-peekStart, parsing, context)
+	// Windows can split runes, and the input can be binary.
+	iter.Error = errors.New(strings.ToValidUTF8(fmt.Sprintf("%s: %s, error found in #%v byte of ...|%s|..., bigger context ...|%s|...",
+		operation, msg, iter.head-peekStart, parsing, context), "\uFFFD"))
 }
 
 // CurrentBuffer gets current buffer as string for debugging purpose
